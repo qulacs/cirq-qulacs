@@ -51,8 +51,9 @@ RUN python3 setup.py install
 WORKDIR /
 RUN git clone https://github.com/quantumlib/Cirq.git
 WORKDIR /Cirq
-RUN cat apt-system-requirements.txt dev_tools/conf/apt-list-dev-tools.txt | xargs apt-get install --yes && \
-    python3 setup.py install
+RUN apt-get update -y && \
+    cat apt-system-requirements.txt dev_tools/conf/apt-list-dev-tools.txt | xargs apt-get install --yes
+RUN python3 setup.py install
 
 # RUN git clone https://github.com/qulacs/cirq-qulacs.git
 # WORKDIR /cirq-qulacs
