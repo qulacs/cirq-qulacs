@@ -52,6 +52,13 @@ class QulacsSimulator(Simulator):
                 buffer=np.empty((2,) * num_qubits, dtype=self._dtype))
 	
         shape = list(np.array(data.state).shape)
+
+        # Qulacs
+        qulacs_flag = 0
+        cirq_state = np.array(data.state).flatten().astype(np.complex64)
+        qulacs_state = qulacs.QuantumState(int(num_qubits))
+        qulacs_circuit = qulacs.QuantumCircuit(int(num_qubits))
+
         for moment in circuit:
 
             measurements = collections.defaultdict(
@@ -62,6 +69,7 @@ class QulacsSimulator(Simulator):
                                                       ops.WaveFunctionDisplay,
                                                       ops.DensityMatrixDisplay
                                                       )))
+
             unitary_ops_and_measurements = protocols.decompose(
                 non_display_ops,
                 keep=keep,
@@ -71,12 +79,7 @@ class QulacsSimulator(Simulator):
                 indices = [qubit_map[qubit] for qubit in op.qubits]
                 if protocols.has_unitary(op):
 
-                    # Qulacs
-                    cirq_state = np.array(data.state).flatten().astype(np.complex64)
-                    qulacs_state = qulacs.QuantumState(int(num_qubits))
                     qulacs_state.load(cirq_state)
-                    qulacs_circuit = qulacs.QuantumCircuit(int(num_qubits))
-
                     gate_indexes = re.findall(r'([0-9]+)', str(op.qubits))
 
                     # single qubit unitary gates
@@ -115,14 +118,15 @@ class QulacsSimulator(Simulator):
                     elif isinstance(op.gate, ops.three_qubit_gates.CCZPowGate):
                         qulacs_circuit.add_dense_matrix_gate([num_qubits - 2 - int(gate_indexes[0]), num_qubits - 1 - int(gate_indexes[1]), num_qubits - 1 - int(gate_indexes[2])], op._unitary_())
 
+                    qulacs_flag = 1
+
+                    # self._simulate_unitary(op, data, indices)
+                elif qulacs_flag == 1:
                     data.buffer = data.state
                     qulacs_circuit.update_quantum_state(qulacs_state)
                     data.state = qulacs_state.get_vector().reshape(shape)
+                    qulacs_flag = 0
 
-                    del qulacs_state
-                    del qulacs_circuit
-
-                    # self._simulate_unitary(op, data, indices)
                 elif protocols.is_measurement(op):
                     # Do measurements second, since there may be mixtures that
                     # operate as measurements.
@@ -134,9 +138,19 @@ class QulacsSimulator(Simulator):
 
                 elif protocols.has_mixture(op):
                     self._simulate_mixture(op, data, indices)
+
+            if qulacs_flag == 1:
+                data.buffer = data.state
+                qulacs_circuit.update_quantum_state(qulacs_state)
+                data.state = qulacs_state.get_vector().reshape(shape)
+                qulacs_flag = 0
+
                     
             yield SparseSimulatorStep(
                 state_vector=data.state,
                 measurements=measurements,
                 qubit_map=qubit_map,
                 dtype=self._dtype)
+
+        del qulacs_state
+        del qulacs_circuit
