@@ -51,7 +51,7 @@ class QulacsSimulator(Simulator):
                 state=np.reshape(state, (2,) * num_qubits),
                 buffer=np.empty((2,) * num_qubits, dtype=self._dtype))
 	
-        shape = list(np.array(data.state).shape)
+        shape = np.array(data.state).shape
 
         # Qulacs
         qulacs_flag = 0
@@ -122,10 +122,7 @@ class QulacsSimulator(Simulator):
 
                     # self._simulate_unitary(op, data, indices)
                 elif qulacs_flag == 1:
-                    data.buffer = data.state
-                    qulacs_circuit.update_quantum_state(qulacs_state)
-                    data.state = qulacs_state.get_vector().reshape(shape)
-                    qulacs_flag = 0
+                    self._simulate_on_qulacs(data, shape, qulacs_state, qulacs_circuit, qulacs_flag)
 
                 elif protocols.is_measurement(op):
                     # Do measurements second, since there may be mixtures that
@@ -140,11 +137,7 @@ class QulacsSimulator(Simulator):
                     self._simulate_mixture(op, data, indices)
 
             if qulacs_flag == 1:
-                data.buffer = data.state
-                qulacs_circuit.update_quantum_state(qulacs_state)
-                data.state = qulacs_state.get_vector().reshape(shape)
-                qulacs_flag = 0
-
+                self._simulate_on_qulacs(data, shape, qulacs_state, qulacs_circuit, qulacs_flag)
                     
             yield SparseSimulatorStep(
                 state_vector=data.state,
@@ -154,3 +147,17 @@ class QulacsSimulator(Simulator):
 
         del qulacs_state
         del qulacs_circuit
+
+
+    def _simulate_on_qulacs(
+            self,
+            data: _StateAndBuffer,
+            shape: tuple,
+            qulacs_state: qulacs.QuantumState,
+            qulacs_circuit: qulacs.QuantumCircuit,
+            qulacs_flag: int,
+    ) -> None:
+        data.buffer = data.state
+        qulacs_circuit.update_quantum_state(qulacs_state)
+        data.state = qulacs_state.get_vector().reshape(shape)
+        qulacs_flag = 0
