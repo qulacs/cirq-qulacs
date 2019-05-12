@@ -242,6 +242,32 @@ class TestQulacsSimulator(unittest.TestCase):
         assert_allclose(actual, expected, rtol=1e-5, atol=0)
 
 
+    def test_QulacsSimulator_Ugate(self):
+        """
+        """
+       
+        qubit_n = 3
+        qubits = [cirq.LineQubit(i) for i in range(qubit_n)]
+        circuit = cirq.Circuit()
+        circuit.append(cirq.circuits.qasm_output.QasmUGate(0.1, 0.2, 0.3).on(qubits[0]))
+        circuit.append(cirq.circuits.qasm_output.QasmUGate(0.4, 0.5, 0.6).on(qubits[1]))
+        circuit.append(cirq.circuits.qasm_output.QasmUGate(0.7, 0.8, 0.9).on(qubits[2]))
+        qulacs_result = QulacsSimulator().simulate(circuit)
+        actual = qulacs_result.final_state
+
+        qubit_n = 3
+    
+        qubits = [cirq.LineQubit(i) for i in range(qubit_n)]
+        circuit = cirq.Circuit()
+        circuit.append(cirq.circuits.qasm_output.QasmUGate(0.1, 0.2, 0.3).on(qubits[0]))
+        circuit.append(cirq.circuits.qasm_output.QasmUGate(0.4, 0.5, 0.6).on(qubits[1]))
+        circuit.append(cirq.circuits.qasm_output.QasmUGate(0.7, 0.8, 0.9).on(qubits[2]))
+        cirq_result = cirq.Simulator().simulate(circuit)
+        expected = cirq_result.final_state
+
+        assert_allclose(actual, expected, rtol=1e-5, atol=0)
+
+
     def test_QulacsSimulator_CNOTgate(self):
         """
         """

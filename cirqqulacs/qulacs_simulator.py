@@ -97,6 +97,8 @@ class QulacsSimulator(Simulator):
                         qulacs_circuit.add_dense_matrix_gate(num_qubits - 1 - int(gate_indexes[0]), op._unitary_())
                     elif isinstance(op.gate, ops.common_gates.ZPowGate):
                         qulacs_circuit.add_dense_matrix_gate(num_qubits - 1 - int(gate_indexes[0]), op._unitary_())
+                    elif isinstance(op.gate, circuits.qasm_output.QasmUGate):
+                        qulacs_circuit.add_dense_matrix_gate(num_qubits - 1 - int(gate_indexes[0]), op._unitary_())
 
                     # Two Qubit Unitary Gates
                     elif isinstance(op.gate, ops.common_gates.CNotPowGate):
