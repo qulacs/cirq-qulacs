@@ -30,14 +30,10 @@ RUN apt-get update -y && \
     && \
     rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*
 
-RUN wget http://ftp.tsukuba.wide.ad.jp/software/gcc/releases/gcc-7.3.0/gcc-7.3.0.tar.gz && \
-    tar -zxvf gcc-7.3.0.tar.gz
-RUN mkdir -p /gcc-7.3.0/build
-WORKDIR /gcc-7.3.0
-RUN ./contrib/download_prerequisites
-WORKDIR /gcc-7.3.0/build
-RUN ../configure --enable-languages=c,c++ --prefix=/usr/local --disable-bootstrap --disable-multilib && \
-    make && make install
+RUN add-apt-repository ppa:ubuntu-toolchain-r/test && \
+    apt-get update -y && \
+    apt-get update -y && \
+    apt-get install g++-7 -y
 
 WORKDIR /
 RUN rm /usr/bin/python3 && \
@@ -64,3 +60,5 @@ RUN python3 setup.py install
 RUN python3 setup.py test
 
 WORKDIR /
+RUN pip3 install qiskit==0.6.0
+RUN git clone https://github.com/Qiskit/openqasm.git
