@@ -1,8 +1,9 @@
-import matplotlib.pyplot as plt
-import numpy as np
+import os
+import re
 import time
 import random
-import re
+import matplotlib.pyplot as plt
+import numpy as np
 
 import cirq
 from cirqqulacs import QulacsSimulator, QulacsSimulatorGpu
@@ -51,11 +52,11 @@ def parse_qasm_to_QulacsCircuit(input_filename,cirq_circuit,cirq_qubits):
 
 def main():
 
-    os.mkdir("benchmark")
+    os.mkdir("result")
 
-    with open('benchmark/benchmark.csv', 'w') as f:
-        with open('benchmark/benchmark_gpu.csv', 'w') as g:
-            with open('benchmark/benchmark_cirq.csv', 'w') as h:
+    with open('result/benchmark.csv', 'w') as f:
+        with open('result/benchmark_gpu.csv', 'w') as g:
+            with open('result/benchmark_cirq.csv', 'w') as h:
                 f.write('n_qubits,n_iter,elapsed_time\n')
                 g.write('n_qubits,n_iter,elapsed_time\n')
                 h.write('n_qubits,n_iter,elapsed_time\n')
@@ -63,7 +64,7 @@ def main():
                     for nqubits in range(5, 20+1):
                         qubits = [cirq.LineQubit(i) for i in range(nqubits)]
                         circuit = cirq.Circuit()
-                        parse_qasm_to_QulacsCircuit('quantum_volume_n{}_d8_0_{}.qasm'.format(nqubits, niter) ,circuit, qubits)
+                        parse_qasm_to_QulacsCircuit('quantum_volume/quantum_volume_n{}_d8_0_{}.qasm'.format(nqubits, niter) ,circuit, qubits)
 
                         sim = QulacsSimulator()
                         start = time.time()
