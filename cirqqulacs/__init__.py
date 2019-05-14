@@ -1,1 +1,1 @@
-from .qulacs_simulator import QulacsSimulator
+from .qulacs_simulator import QulacsSimulator, QulacsSimulatorGpu
