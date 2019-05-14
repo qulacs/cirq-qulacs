@@ -61,7 +61,7 @@ def main():
                 g.write('n_qubits,n_iter,elapsed_time\n')
                 h.write('n_qubits,n_iter,elapsed_time\n')
                 for niter in range(10):
-                    for nqubits in range(5, 20+1):
+                    for nqubits in range(5, 25+1):
                         qubits = [cirq.LineQubit(i) for i in range(nqubits)]
                         circuit = cirq.Circuit()
                         parse_qasm_to_QulacsCircuit('quantum_volume/quantum_volume_n{}_d8_0_{}.qasm'.format(nqubits, niter) ,circuit, qubits)
