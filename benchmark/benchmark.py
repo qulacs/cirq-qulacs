@@ -5,7 +5,7 @@ import random
 import re
 
 import cirq
-from cirqqulacs import QulacsSimulator
+from cirqqulacs import QulacsSimulator, QulacsSimulatorGpu
 
 
 def parse_qasm_to_QulacsCircuit(input_filename,cirq_circuit,cirq_qubits):
@@ -47,20 +47,48 @@ def parse_qasm_to_QulacsCircuit(input_filename,cirq_circuit,cirq_qubits):
 
                continue
 
+
+
 def main():
-   bench_result_quantum_volume = [[],[]]
 
-   with open('benchmark_gpu.csv', 'w') as f:
-       f.write('nqubits,elapsed_time\n')
-       for nqubits in range(5, 20+1):
-           qubits = [cirq.LineQubit(i) for i in range(nqubits)]
-           circuit = cirq.Circuit()
-           parse_qasm_to_QulacsCircuit('quantum_volume_n{}_d8_0_0.qasm'.format(nqubits) ,circuit, qubits)
+    os.mkdir("benchmark")
 
-           start = time.time()
-           qulacs_result = QulacsSimulator().simulate(circuit)
-           elapsed_time = time.time() - start
-           f.write('{},{}\n'.format(nqubits, elapsed_time))
+    with open('benchmark/benchmark.csv', 'w') as f:
+        with open('benchmark/benchmark_gpu.csv', 'w') as g:
+            with open('benchmark/benchmark_cirq.csv', 'w') as h:
+                f.write('n_qubits,n_iter,elapsed_time\n')
+                g.write('n_qubits,n_iter,elapsed_time\n')
+                h.write('n_qubits,n_iter,elapsed_time\n')
+                for niter in range(10):
+                    for nqubits in range(5, 20+1):
+                        qubits = [cirq.LineQubit(i) for i in range(nqubits)]
+                        circuit = cirq.Circuit()
+                        parse_qasm_to_QulacsCircuit('quantum_volume_n{}_d8_0_{}.qasm'.format(nqubits, niter) ,circuit, qubits)
+
+                        sim = QulacsSimulator()
+                        start = time.time()
+                        qulacs_result = sim.simulate(circuit)
+                        elapsed_time = time.time() - start
+                        f.write('{},{},{}\n'.format(nqubits, niter, elapsed_time))
+                        
+                        del sim 
+
+                        sim = QulacsSimulatorGpu()
+                        start = time.time()
+                        qulacs_result = sim.simulate(circuit)
+                        elapsed_time = time.time() - start
+                        g.write('{},{},{}\n'.format(nqubits, niter, elapsed_time))
+
+                        del sim 
+
+                        sim = cirq.Simulator()
+                        start = time.time()
+                        qulacs_result = sim.simulate(circuit)
+                        elapsed_time = time.time() - start
+                        h.write('{},{},{}\n'.format(nqubits, niter, elapsed_time))
+
+                        del sim 
+
 
 
 if __name__ == '__main__':
