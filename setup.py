@@ -16,5 +16,4 @@ setup(
     long_description=readme,
     license=license,
     packages=find_packages(exclude=['tests']),
-    test_suite = 'tests'
 )
