@@ -9,7 +9,7 @@ import cirq
 from cirqqulacs import QulacsSimulator, QulacsSimulatorGpu
 
 
-def parse_qasm_to_QulacsCircuit(input_filename,cirq_circuit,cirq_qubits):
+def parse_qasm_to_CirqCircuit(input_filename, cirq_circuit, cirq_qubits):
 
    with open(input_filename, "r") as ifile:
        lines = ifile.readlines()
@@ -22,7 +22,6 @@ def parse_qasm_to_QulacsCircuit(input_filename,cirq_circuit,cirq_qubits):
 
            elif s.group() == 'qreg':
                match = re.search(r"\d\d*", line)
-               # print(match)
                continue
 
            elif s.group() == 'cx':
@@ -35,19 +34,14 @@ def parse_qasm_to_QulacsCircuit(input_filename,cirq_circuit,cirq_qubits):
            elif s.group() == 'u3':
                m_r = re.findall(r'[-]?\d\.\d\d*', line)
                m_i = re.findall(r'\[\d\d*\]', line)
-
                cirq_circuit.append(cirq.circuits.qasm_output.QasmUGate(float(m_r[0]),float(m_r[1]),float(m_r[2])).on(cirq_qubits[int(m_i[0].strip('[]'))]))
-
                continue
 
            elif s.group() == 'u1':
                m_r = re.findall(r'[-]?\d\.\d\d*', line)
                m_i = re.findall(r'\[\d\d*\]', line) 
-
                cirq_circuit.append(cirq.circuits.qasm_output.QasmUGate(float(m_r[0]), 0, 0).on(cirq_qubits[int(m_i[0].strip('[]'))]))
-
                continue
-
 
 
 def main():
@@ -64,7 +58,7 @@ def main():
                     for nqubits in range(5, 25+1):
                         qubits = [cirq.LineQubit(i) for i in range(nqubits)]
                         circuit = cirq.Circuit()
-                        parse_qasm_to_QulacsCircuit('quantum_volume/quantum_volume_n{}_d8_0_{}.qasm'.format(nqubits, niter) ,circuit, qubits)
+                        parse_qasm_to_CirqCircuit('quantum_volume/quantum_volume_n{}_d8_0_{}.qasm'.format(nqubits, niter) ,circuit, qubits)
 
                         sim = QulacsSimulator()
                         start = time.time()
