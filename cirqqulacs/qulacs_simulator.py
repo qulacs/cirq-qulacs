@@ -142,7 +142,7 @@ class QulacsSimulator(Simulator):
                             op._unitary_())
                     elif isinstance(op.gate, ops.three_qubit_gates.CCZPowGate):
                         qulacs_circuit.add_dense_matrix_gate(
-                            [num_qubits - 2 - int(gate_indexes[0]),
+                            [num_qubits - 1 - int(gate_indexes[0]),
                              num_qubits - 1 - int(gate_indexes[1]),
                              num_qubits - 1 - int(gate_indexes[2])],
                             op._unitary_())
