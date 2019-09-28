@@ -49,8 +49,8 @@ def main():
     if not os.path.exists("./result"):
         os.mkdir("result")
     dtype = np.complex128
-    with open('result/benchmark.csv', 'w') as f:
-        with open('result/benchmark_cirq.csv', 'w') as h:
+    with open('result/benchmark_density_matrix.csv', 'w') as f:
+        with open('result/benchmark_density_matrix_cirq.csv', 'w') as h:
             f.write('n_qubits,n_iter,elapsed_time\n')
             h.write('n_qubits,n_iter,elapsed_time\n')
             for niter in range(10):
