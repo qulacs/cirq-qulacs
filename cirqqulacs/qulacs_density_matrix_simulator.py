@@ -59,6 +59,7 @@ class QulacsDensityMatrixSimulator(DensityMatrixSimulator):
                 for op in channel_ops_and_measurements:
                     #indices = [qubit_map[qubit] for qubit in op.qubits]
                     indices = [num_qubits - 1 - qubit_map[qubit] for qubit in op.qubits]
+                    indices.reverse()
                     if isinstance(op,
                                 (ops.SamplesDisplay,
                                     ops.WaveFunctionDisplay,
