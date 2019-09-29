@@ -45,7 +45,7 @@ qubit_n = 3
 qubits = [cirq.LineQubit(i) for i in range(qubit_n)]
 circuit = cirq.Circuit()
 circuit.append(cirq.ops.X(qubits[0]))
-circuit.append(cirq.ops.Rx(np.pi/5.5).on(qubits[1])
+circuit.append(cirq.ops.Rx(np.pi/5.5).on(qubits[1]))
 circuit.append(cirq.ops.CCZ(qubits[0], qubits[1], qubits[2]))
 result = QulacsSimulator().simulate(circuit)
 ```
@@ -58,7 +58,7 @@ qubit_n = 3
 qubits = [cirq.LineQubit(i) for i in range(qubit_n)]
 circuit = cirq.Circuit()
 circuit.append(cirq.ops.X(qubits[0]))
-circuit.append(cirq.ops.Rx(np.pi/5.5).on(qubits[1])
+circuit.append(cirq.ops.Rx(np.pi/5.5).on(qubits[1]))
 circuit.append(cirq.ops.CCZ(qubits[0], qubits[1], qubits[2]))
 result = QulacsSimulatorGpu().simulate(circuit)
 ```
