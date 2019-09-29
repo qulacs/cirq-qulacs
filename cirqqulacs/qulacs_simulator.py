@@ -108,6 +108,9 @@ class QulacsSimulator(Simulator):
                         indices.reverse()
                         qulacs_circuit.add_dense_matrix_gate(indices,
                                                              op._unitary_())
+                    elif isinstance(op.gate, ops.matrix_gates.SingleQubitMatrixGate):
+                        qulacs_circuit.add_dense_matrix_gate(indices,
+                                                             op._unitary_())
 
                     # Two Qubit Unitary Gates
                     elif isinstance(op.gate, ops.common_gates.CNotPowGate):
@@ -116,6 +119,10 @@ class QulacsSimulator(Simulator):
                         qulacs_circuit.add_CZ_gate(indices[0], indices[1])
                     elif isinstance(op.gate, ops.common_gates.SwapPowGate):
                         qulacs_circuit.add_SWAP_gate(indices[0], indices[1])
+                    elif isinstance(op.gate, ops.common_gates.ISwapPowGate):
+                        indices.reverse()
+                        qulacs_circuit.add_dense_matrix_gate(indices,
+                                                             op._unitary_())
                     elif isinstance(op.gate, ops.parity_gates.XXPowGate):
                         indices.reverse()
                         qulacs_circuit.add_dense_matrix_gate(indices,
@@ -128,6 +135,10 @@ class QulacsSimulator(Simulator):
                         indices.reverse()
                         qulacs_circuit.add_dense_matrix_gate(indices,
                                                              op._unitary_())
+                    elif isinstance(op.gate, ops.matrix_gates.TwoQubitMatrixGate):
+                        indices.reverse()
+                        qulacs_circuit.add_dense_matrix_gate(indices,
+                                                             op._unitary_())
 
                     # Three Qubit Unitary Gates
                     elif isinstance(op.gate, ops.three_qubit_gates.CCXPowGate):
@@ -135,6 +146,10 @@ class QulacsSimulator(Simulator):
                         qulacs_circuit.add_dense_matrix_gate(indices,
                                                              op._unitary_())
                     elif isinstance(op.gate, ops.three_qubit_gates.CCZPowGate):
+                        indices.reverse()
+                        qulacs_circuit.add_dense_matrix_gate(indices,
+                                                             op._unitary_())
+                    elif isinstance(op.gate, ops.three_qubit_gates.CSwapGate):
                         indices.reverse()
                         qulacs_circuit.add_dense_matrix_gate(indices,
                                                              op._unitary_())

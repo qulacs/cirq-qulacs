@@ -2,6 +2,7 @@ import re
 import unittest
 import numpy as np
 from numpy.testing import assert_array_equal, assert_allclose
+from scipy.stats import unitary_group
 
 import cirq
 from cirqqulacs import QulacsSimulator, QulacsSimulatorGpu
@@ -168,6 +169,23 @@ class TestQulacsSimulator(unittest.TestCase):
         self.check_two_qubit_gate(cirq.ops.SWAP)
 
 
+    def test_QulacsSimulator_ISWAPgate(self):
+        self.check_two_qubit_gate(cirq.ops.ISWAP)
+
+
+    def test_QulacsSimulator_SingleQubitMatrixGate(self):
+        qubits = [cirq.LineQubit(i) for i in range(self.qubit_n)]
+        circuit = cirq.Circuit()
+        for _ in range(self.test_repeat):
+            for index in range(self.qubit_n):
+                angle = np.random.rand(3)*np.pi*2
+                circuit.append(cirq.circuits.qasm_output.QasmUGate(angle[0], angle[1], angle[2]).on(qubits[index]))
+            index = np.random.randint(self.qubit_n)
+            mat = unitary_group.rvs(2)
+            circuit.append(cirq.SingleQubitMatrixGate(mat).on(qubits[index]))
+            self.check_result(circuit)
+
+
     def test_QulacsSimulator_XXgate(self):
         self.check_two_qubit_gate(cirq.ops.XX)
 
@@ -180,6 +198,18 @@ class TestQulacsSimulator(unittest.TestCase):
         self.check_two_qubit_gate(cirq.ops.ZZ)
 
 
+    def test_QulacsSimulator_TwoQubitMatrixGate(self):
+        qubits = [cirq.LineQubit(i) for i in range(self.qubit_n)]
+        circuit = cirq.Circuit()
+        all_indices = np.arange(self.qubit_n)
+        for _ in range(self.test_repeat):
+            np.random.shuffle(all_indices)
+            index = all_indices[:2]
+            mat = unitary_group.rvs(4)
+            circuit.append(cirq.TwoQubitMatrixGate(mat).on(qubits[index[0]], qubits[index[1]]))
+            self.check_result(circuit)
+
+
     def test_QulacsSimulator_CCXgate(self):
         self.check_three_qubit_gate(cirq.ops.CCX)
 
@@ -190,6 +220,10 @@ class TestQulacsSimulator(unittest.TestCase):
 
     def test_QulacsSimulator_TOFFOLIgate(self):
         self.check_three_qubit_gate(cirq.ops.TOFFOLI)
+
+
+    def test_QulacsSimulator_CSwapGate(self):
+        self.check_three_qubit_gate(cirq.ops.CSWAP)
 
 
     def test_QulacsSimulator_QuantumVolume(self):
