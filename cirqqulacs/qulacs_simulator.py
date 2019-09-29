@@ -169,6 +169,10 @@ class QulacsSimulator(Simulator):
                                                    measurements, num_qubits)
 
                 elif protocols.has_mixture(op):
+                    if qulacs_flag == 1:
+                        self._simulate_on_qulacs(data, shape, qulacs_state, qulacs_circuit)
+                        qulacs_flag = 0
+                        qulacs_circuit = qulacs.QuantumCircuit(int(num_qubits))
                     self._simulate_mixture(op, data, indices)
 
         if qulacs_flag == 1:
