@@ -5,7 +5,7 @@ from numpy.testing import assert_array_equal, assert_allclose
 
 import cirq
 from cirqqulacs import QulacsDensityMatrixSimulator
-from tests.cpu.test_qulacs_simulator import parse_qasm_to_QulacsCircuit
+from test_qulacs_simulator import parse_qasm_to_QulacsCircuit
 
 class TestQulacsDensityMatrixSimulator(unittest.TestCase):
     def __init__(self, *args, **kwargs):
