@@ -266,72 +266,79 @@ class QulacsSimulatorGpu(Simulator):
                 on_stuck_raise=on_stuck)
 
             for op in unitary_ops_and_measurements:
-                indices = [qubit_map[qubit] for qubit in op.qubits]
+                indices = [num_qubits - 1 - qubit_map[qubit] for qubit in op.qubits]
                 if protocols.has_unitary(op):
-
-                    gate_indexes = re.findall(r'([0-9]+)', str(op.qubits))
 
                     # single qubit unitary gates
                     if isinstance(op.gate, ops.pauli_gates._PauliX):
-                        qulacs_circuit.add_X_gate(num_qubits - 1 - int(gate_indexes[0]))
+                        qulacs_circuit.add_X_gate(indices[0])
                     elif isinstance(op.gate, ops.pauli_gates._PauliY):
-                        qulacs_circuit.add_Y_gate(num_qubits - 1 - int(gate_indexes[0]))
+                        qulacs_circuit.add_Y_gate(indices[0])
                     elif isinstance(op.gate, ops.pauli_gates._PauliZ):
-                        qulacs_circuit.add_Z_gate(num_qubits - 1 - int(gate_indexes[0]))
+                        qulacs_circuit.add_Z_gate(indices[0])
                     elif isinstance(op.gate, ops.common_gates.HPowGate):
-                        qulacs_circuit.add_H_gate(num_qubits - 1 - int(gate_indexes[0]))
+                        qulacs_circuit.add_H_gate(indices[0])
                     elif isinstance(op.gate, ops.common_gates.XPowGate):
-                        qulacs_circuit.add_dense_matrix_gate(num_qubits - 1 - int(gate_indexes[0]),
+                        indices.reverse()
+                        qulacs_circuit.add_dense_matrix_gate(indices,
                                                              op._unitary_())
                     elif isinstance(op.gate, ops.common_gates.YPowGate):
-                        qulacs_circuit.add_dense_matrix_gate(num_qubits - 1 - int(gate_indexes[0]),
+                        indices.reverse()
+                        qulacs_circuit.add_dense_matrix_gate(indices,
                                                              op._unitary_())
                     elif isinstance(op.gate, ops.common_gates.ZPowGate):
-                        qulacs_circuit.add_dense_matrix_gate(num_qubits - 1 - int(gate_indexes[0]),
+                        indices.reverse()
+                        qulacs_circuit.add_dense_matrix_gate(indices,
                                                              op._unitary_())
                     elif isinstance(op.gate, circuits.qasm_output.QasmUGate):
-                        qulacs_circuit.add_dense_matrix_gate(num_qubits - 1 - int(gate_indexes[0]),
+                        indices.reverse()
+                        qulacs_circuit.add_dense_matrix_gate(indices,
+                                                             op._unitary_())
+                    elif isinstance(op.gate, ops.matrix_gates.SingleQubitMatrixGate):
+                        qulacs_circuit.add_dense_matrix_gate(indices,
                                                              op._unitary_())
 
                     # Two Qubit Unitary Gates
                     elif isinstance(op.gate, ops.common_gates.CNotPowGate):
-                        qulacs_circuit.add_CNOT_gate(num_qubits - 1 - int(gate_indexes[0]),
-                                                     num_qubits - 1 - int(gate_indexes[1]))
+                        qulacs_circuit.add_CNOT_gate(indices[0], indices[1])
                     elif isinstance(op.gate, ops.common_gates.CZPowGate):
-                        qulacs_circuit.add_CZ_gate(num_qubits - 1 - int(gate_indexes[0]),
-                                                   num_qubits - 1 - int(gate_indexes[1]))
+                        qulacs_circuit.add_CZ_gate(indices[0], indices[1])
                     elif isinstance(op.gate, ops.common_gates.SwapPowGate):
-                        qulacs_circuit.add_SWAP_gate(num_qubits - 1 - int(gate_indexes[0]),
-                                                     num_qubits - 1 - int(gate_indexes[1]))
+                        qulacs_circuit.add_SWAP_gate(indices[0], indices[1])
+                    elif isinstance(op.gate, ops.common_gates.ISwapPowGate):
+                        indices.reverse()
+                        qulacs_circuit.add_dense_matrix_gate(indices,
+                                                             op._unitary_())
                     elif isinstance(op.gate, ops.parity_gates.XXPowGate):
-                        qulacs_circuit.add_dense_matrix_gate(
-                            [num_qubits - 1 - int(gate_indexes[0]),
-                             num_qubits - 1 - int(gate_indexes[1])],
-                            op._unitary_())
+                        indices.reverse()
+                        qulacs_circuit.add_dense_matrix_gate(indices,
+                                                             op._unitary_())
                     elif isinstance(op.gate, ops.parity_gates.YYPowGate):
-                        qulacs_circuit.add_dense_matrix_gate(
-                            [num_qubits - 1 - int(gate_indexes[0]),
-                             num_qubits - 1 - int(gate_indexes[1])],
-                            op._unitary_())
+                        indices.reverse()
+                        qulacs_circuit.add_dense_matrix_gate(indices,
+                                                             op._unitary_())
                     elif isinstance(op.gate, ops.parity_gates.ZZPowGate):
-                        qulacs_circuit.add_dense_matrix_gate(
-                            [num_qubits - 1 - int(gate_indexes[0]),
-                             num_qubits - 1 - int(gate_indexes[1])],
-                            op._unitary_())
+                        indices.reverse()
+                        qulacs_circuit.add_dense_matrix_gate(indices,
+                                                             op._unitary_())
+                    elif isinstance(op.gate, ops.matrix_gates.TwoQubitMatrixGate):
+                        indices.reverse()
+                        qulacs_circuit.add_dense_matrix_gate(indices,
+                                                             op._unitary_())
 
                     # Three Qubit Unitary Gates
                     elif isinstance(op.gate, ops.three_qubit_gates.CCXPowGate):
-                        qulacs_circuit.add_dense_matrix_gate(
-                            [num_qubits - 1 - int(gate_indexes[0]),
-                             num_qubits - 1 - int(gate_indexes[1]),
-                             num_qubits - 1 - int(gate_indexes[2])],
-                            op._unitary_())
+                        indices.reverse()
+                        qulacs_circuit.add_dense_matrix_gate(indices,
+                                                             op._unitary_())
                     elif isinstance(op.gate, ops.three_qubit_gates.CCZPowGate):
-                        qulacs_circuit.add_dense_matrix_gate(
-                            [num_qubits - 2 - int(gate_indexes[0]),
-                             num_qubits - 1 - int(gate_indexes[1]),
-                             num_qubits - 1 - int(gate_indexes[2])],
-                            op._unitary_())
+                        indices.reverse()
+                        qulacs_circuit.add_dense_matrix_gate(indices,
+                                                             op._unitary_())
+                    elif isinstance(op.gate, ops.three_qubit_gates.CSwapGate):
+                        indices.reverse()
+                        qulacs_circuit.add_dense_matrix_gate(indices,
+                                                             op._unitary_())
 
                     qulacs_flag = 1
 
@@ -348,6 +355,10 @@ class QulacsSimulatorGpu(Simulator):
                                                    measurements, num_qubits)
 
                 elif protocols.has_mixture(op):
+                    if qulacs_flag == 1:
+                        self._simulate_on_qulacs(data, shape, qulacs_state, qulacs_circuit)
+                        qulacs_flag = 0
+                        qulacs_circuit = qulacs.QuantumCircuit(int(num_qubits))
                     self._simulate_mixture(op, data, indices)
 
         if qulacs_flag == 1:
