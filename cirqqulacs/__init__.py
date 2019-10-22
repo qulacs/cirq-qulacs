@@ -1,1 +1,2 @@
 from .qulacs_simulator import QulacsSimulator, QulacsSimulatorGpu
+from .qulacs_density_matrix_simulator import QulacsDensityMatrixSimulator
