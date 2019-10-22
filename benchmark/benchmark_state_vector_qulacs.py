@@ -5,11 +5,9 @@ import random
 import matplotlib.pyplot as plt
 import numpy as np
 
-import cirq
-from cirqqulacs import QulacsDensityMatrixSimulator
+from qulacs import QuantumState, QuantumStateGpu, QuantumCircuit
 
-
-def parse_qasm_to_CirqCircuit(input_filename, cirq_circuit, cirq_qubits):
+def parse_qasm_to_QulacsCircuit(input_filename, qulacs_circuit):
 
    with open(input_filename, "r") as ifile:
        lines = ifile.readlines()
@@ -28,58 +26,56 @@ def parse_qasm_to_CirqCircuit(input_filename, cirq_circuit, cirq_qubits):
                match = re.findall(r'\[\d\d*\]', line)
                c_qbit = int(match[0].strip('[]'))
                t_qbit = int(match[1].strip('[]'))
-               cirq_circuit.append(cirq.ops.CNOT(cirq_qubits[c_qbit],cirq_qubits[t_qbit]))
+               qulacs_circuit.add_CNOT_gate(c_qbit, t_qbit)
                continue
 
            elif s.group() == 'u3':
                m_r = re.findall(r'[-]?\d\.\d\d*', line)
                m_i = re.findall(r'\[\d\d*\]', line)
-               cirq_circuit.append(cirq.circuits.qasm_output.QasmUGate(float(m_r[0]),float(m_r[1]),float(m_r[2])).on(cirq_qubits[int(m_i[0].strip('[]'))]))
+               t_qbit = int(m_i[0].strip('[]'))
+               qulacs_circuit.add_U3_gate(t_qbit, float(m_r[0]),float(m_r[1]),float(m_r[2]))
                continue
 
            elif s.group() == 'u1':
                m_r = re.findall(r'[-]?\d\.\d\d*', line)
                m_i = re.findall(r'\[\d\d*\]', line) 
-               cirq_circuit.append(cirq.circuits.qasm_output.QasmUGate(float(m_r[0]), 0, 0).on(cirq_qubits[int(m_i[0].strip('[]'))]))
+               t_qbit = int(m_i[0].strip('[]'))
+               qulacs_circuit.add_U1_gate(t_qbit, float(m_r[0]))
                continue
 
 
 def main():
 
-    dtype = np.complex128
-    folder_path = "./result"
+    folder_path = "./result_qulacs"
     if not os.path.exists(folder_path):
         os.mkdir(folder_path)
 
-    with open(folder_path+'/benchmark_density_matrix_qulacs_cpu.csv', 'w') as f:
-        with open(folder_path+'/benchmark_density_matrix_cirq_cpu.csv', 'w') as h:
+    with open(folder_path+'/benchmark_state_vector_qulacs_cpu.csv', 'w') as f:
+        with open(folder_path+'/benchmark_state_vector_qulacs_gpu.csv', 'w') as g:
             f.write('n_qubits,n_iter,elapsed_time\n')
-            h.write('n_qubits,n_iter,elapsed_time\n')
+            g.write('n_qubits,n_iter,elapsed_time\n')
             for niter in range(10):
-                for nqubits in range(5,12+1):
-                    qubits = [cirq.LineQubit(i) for i in range(nqubits)]
-                    circuit = cirq.Circuit()
-                    parse_qasm_to_CirqCircuit('quantum_volume/quantum_volume_n{}_d8_0_{}.qasm'.format(nqubits, niter) ,circuit, qubits)
+                for nqubits in range(5, 25+1):
+                    circuit = QuantumCircuit(nqubits)
+                    parse_qasm_to_QulacsCircuit('quantum_volume/quantum_volume_n{}_d8_0_{}.qasm'.format(nqubits, niter) ,circuit)
 
-                    sim = QulacsDensityMatrixSimulator(dtype=dtype)
+                    state = QuantumState(nqubits)
                     start = time.time()
-                    _ = sim.simulate(circuit)
+                    circuit.update_quantum_state(state)
                     elapsed_time = time.time() - start
                     f.write('{},{},{}\n'.format(nqubits, niter, elapsed_time))
                     print('cpu  {},{},{}'.format(nqubits, niter, elapsed_time))
                     
-                    del sim 
+                    del state
 
-                    sim = cirq.DensityMatrixSimulator(dtype=dtype)
+                    state = QuantumStateGpu(nqubits)
                     start = time.time()
-                    _ = sim.simulate(circuit)
+                    circuit.update_quantum_state(state)
                     elapsed_time = time.time() - start
-                    h.write('{},{},{}\n'.format(nqubits, niter, elapsed_time))
-                    print('cirq {},{},{}'.format(nqubits, niter, elapsed_time))
+                    g.write('{},{},{}\n'.format(nqubits, niter, elapsed_time))
+                    print('gpu  {},{},{}'.format(nqubits, niter, elapsed_time))
 
-                    del sim 
-
-
+                    del state
 
 if __name__ == '__main__':
    main()

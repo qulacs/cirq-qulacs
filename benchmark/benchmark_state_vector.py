@@ -46,11 +46,14 @@ def parse_qasm_to_CirqCircuit(input_filename, cirq_circuit, cirq_qubits):
 
 def main():
 
-    os.mkdir("result")
+    dtype = np.complex128
+    folder_path = "./result"
+    if not os.path.exists(folder_path):
+        os.mkdir(folder_path)
 
-    with open('result/benchmark.csv', 'w') as f:
-        with open('result/benchmark_gpu.csv', 'w') as g:
-            with open('result/benchmark_cirq.csv', 'w') as h:
+    with open(folder_path+'/benchmark_state_vector_qulacs_cpu.csv', 'w') as f:
+        with open(folder_path+'/benchmark_state_vector_qulacs_gpu.csv', 'w') as g:
+            with open(folder_path+'/benchmark_state_vector_cirq_cpu.csv', 'w') as h:
                 f.write('n_qubits,n_iter,elapsed_time\n')
                 g.write('n_qubits,n_iter,elapsed_time\n')
                 h.write('n_qubits,n_iter,elapsed_time\n')
@@ -60,27 +63,30 @@ def main():
                         circuit = cirq.Circuit()
                         parse_qasm_to_CirqCircuit('quantum_volume/quantum_volume_n{}_d8_0_{}.qasm'.format(nqubits, niter) ,circuit, qubits)
 
-                        sim = QulacsSimulator()
+                        sim = QulacsSimulator(dtype=dtype)
                         start = time.time()
                         qulacs_result = sim.simulate(circuit)
                         elapsed_time = time.time() - start
                         f.write('{},{},{}\n'.format(nqubits, niter, elapsed_time))
+                        print('cpu  {},{},{}'.format(nqubits, niter, elapsed_time))
                         
                         del sim 
 
-                        sim = QulacsSimulatorGpu()
+                        sim = QulacsSimulatorGpu(dtype=dtype)
                         start = time.time()
                         qulacs_result = sim.simulate(circuit)
                         elapsed_time = time.time() - start
                         g.write('{},{},{}\n'.format(nqubits, niter, elapsed_time))
+                        print('gpu  {},{},{}'.format(nqubits, niter, elapsed_time))
 
                         del sim 
 
-                        sim = cirq.Simulator()
+                        sim = cirq.Simulator(dtype=dtype)
                         start = time.time()
                         qulacs_result = sim.simulate(circuit)
                         elapsed_time = time.time() - start
                         h.write('{},{},{}\n'.format(nqubits, niter, elapsed_time))
+                        print('cirq {},{},{}'.format(nqubits, niter, elapsed_time))
 
                         del sim 
 
