@@ -2,6 +2,7 @@ import re
 import unittest
 import numpy as np
 from numpy.testing import assert_array_equal, assert_allclose
+from scipy.stats import unitary_group
 
 import cirq
 from cirqqulacs import QulacsSimulator, QulacsSimulatorGpu
@@ -50,478 +51,187 @@ def parse_qasm_to_QulacsCircuit(input_filename,cirq_circuit,cirq_qubits):
 
 
 class TestQulacsSimulator(unittest.TestCase):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args,**kwargs)
+        self.qubit_n = 5
+        self.test_repeat = 4
+
+    def check_result(self, circuit, rtol=1e-9, atol=0, dtype=np.complex128):
+        qulacs_result = QulacsSimulator(dtype=dtype).simulate(circuit)
+        actual = qulacs_result.final_state
+        cirq_result = cirq.Simulator(dtype=dtype).simulate(circuit)
+        expected = cirq_result.final_state
+        assert_allclose(actual, expected, rtol=1e-5, atol=0)
+
+
+    def check_single_qubit_gate(self, gate_op):
+        qubits = [cirq.LineQubit(i) for i in range(self.qubit_n)]
+        circuit = cirq.Circuit()
+        for _ in range(self.test_repeat):
+            index = np.random.randint(self.qubit_n)
+            circuit.append(gate_op(qubits[index]))
+            self.check_result(circuit)
+
+
+    def check_single_qubit_rotation_gate(self, gate_op):
+        qubits = [cirq.LineQubit(i) for i in range(self.qubit_n)]
+        circuit = cirq.Circuit()
+        for _ in range(self.test_repeat):
+            index = np.random.randint(self.qubit_n)
+            angle = np.random.rand()*np.pi*2
+            circuit.append(gate_op(angle).on(qubits[index]))
+            self.check_result(circuit)
+
+
+    def check_two_qubit_gate(self, gate_op):
+        qubits = [cirq.LineQubit(i) for i in range(self.qubit_n)]
+        circuit = cirq.Circuit()
+        all_indices = np.arange(self.qubit_n)
+        for _ in range(self.test_repeat):
+            for index in range(self.qubit_n):
+                angle = np.random.rand(3)*np.pi*2
+                circuit.append(cirq.circuits.qasm_output.QasmUGate(angle[0], angle[1], angle[2]).on(qubits[index]))
+            np.random.shuffle(all_indices)
+            index = all_indices[:2]
+            circuit.append(gate_op(qubits[index[0]],qubits[index[1]]))
+            self.check_result(circuit)
+
+
+    def check_three_qubit_gate(self, gate_op):
+        qubits = [cirq.LineQubit(i) for i in range(self.qubit_n)]
+        circuit = cirq.Circuit()
+        all_indices = np.arange(self.qubit_n)
+        for _ in range(self.test_repeat):
+            for index in range(self.qubit_n):
+                angle = np.random.rand(3)*np.pi*2
+                circuit.append(cirq.circuits.qasm_output.QasmUGate(angle[0], angle[1], angle[2]).on(qubits[index]))
+            np.random.shuffle(all_indices)
+            index = all_indices[:3]
+            circuit.append(gate_op(qubits[index[0]],qubits[index[1]],qubits[index[2]]))
+            self.check_result(circuit)
 
 
     def test_QulacsSimulator_Xgate(self):
-        """
-        """
-       
-        qubit_n = 3
-        qubits = [cirq.LineQubit(i) for i in range(qubit_n)]
-        circuit = cirq.Circuit()
-        circuit.append(cirq.ops.X(qubits[0]))
-        circuit.append(cirq.ops.X(qubits[1]))
-        circuit.append(cirq.ops.X(qubits[2]))
-        qulacs_result = QulacsSimulator().simulate(circuit)
-        actual = qulacs_result.final_state
-
-        qubit_n = 3
-        qubits = [cirq.LineQubit(i) for i in range(qubit_n)]
-        circuit = cirq.Circuit()
-        circuit.append(cirq.ops.X(qubits[0]))
-        circuit.append(cirq.ops.X(qubits[1]))
-        circuit.append(cirq.ops.X(qubits[2]))
-        cirq_result = cirq.Simulator().simulate(circuit)
-        expected = cirq_result.final_state
-
-        assert_array_equal(actual, expected)
+        self.check_single_qubit_gate(cirq.ops.X)
 
 
     def test_QulacsSimulator_Ygate(self):
-        """
-        """
-       
-        qubit_n = 3
-        qubits = [cirq.LineQubit(i) for i in range(qubit_n)]
-        circuit = cirq.Circuit()
-        circuit.append(cirq.ops.Y(qubits[0]))
-        circuit.append(cirq.ops.Y(qubits[1]))
-        circuit.append(cirq.ops.Y(qubits[2]))
-        qulacs_result = QulacsSimulator().simulate(circuit)
-        actual = qulacs_result.final_state
-
-        qubit_n = 3
-        qubits = [cirq.LineQubit(i) for i in range(qubit_n)]
-        circuit = cirq.Circuit()
-        circuit.append(cirq.ops.Y(qubits[0]))
-        circuit.append(cirq.ops.Y(qubits[1]))
-        circuit.append(cirq.ops.Y(qubits[2]))
-        cirq_result = cirq.Simulator().simulate(circuit)
-        expected = cirq_result.final_state
-
-        assert_array_equal(actual, expected)
+        self.check_single_qubit_gate(cirq.ops.Y)
 
 
     def test_QulacsSimulator_Zgate(self):
-        """
-        """
-       
-        qubit_n = 3
-        qubits = [cirq.LineQubit(i) for i in range(qubit_n)]
-        circuit = cirq.Circuit()
-        circuit.append(cirq.ops.Z(qubits[0]))
-        circuit.append(cirq.ops.Z(qubits[1]))
-        circuit.append(cirq.ops.Z(qubits[2]))
-        qulacs_result = QulacsSimulator().simulate(circuit)
-        actual = qulacs_result.final_state
-
-        qubit_n = 3
-        qubits = [cirq.LineQubit(i) for i in range(qubit_n)]
-        circuit = cirq.Circuit()
-        circuit.append(cirq.ops.Z(qubits[0]))
-        circuit.append(cirq.ops.Z(qubits[1]))
-        circuit.append(cirq.ops.Z(qubits[2]))
-        cirq_result = cirq.Simulator().simulate(circuit)
-        expected = cirq_result.final_state
-
-        assert_array_equal(actual, expected)
+        self.check_single_qubit_gate(cirq.ops.Z)
 
 
     def test_QulacsSimulator_Hgate(self):
-        """
-        """
-       
-        qubit_n = 3
-        qubits = [cirq.LineQubit(i) for i in range(qubit_n)]
-        circuit = cirq.Circuit()
-        circuit.append(cirq.ops.H(qubits[0]))
-        circuit.append(cirq.ops.H(qubits[1]))
-        circuit.append(cirq.ops.H(qubits[2]))
-        qulacs_result = QulacsSimulator().simulate(circuit)
-        actual = qulacs_result.final_state
-
-        qubit_n = 3
-        qubits = [cirq.LineQubit(i) for i in range(qubit_n)]
-        circuit = cirq.Circuit()
-        circuit.append(cirq.ops.H(qubits[0]))
-        circuit.append(cirq.ops.H(qubits[1]))
-        circuit.append(cirq.ops.H(qubits[2]))
-        cirq_result = cirq.Simulator().simulate(circuit)
-        expected = cirq_result.final_state
-
-        assert_allclose(actual, expected, rtol=1e-5, atol=0)
+        self.check_single_qubit_gate(cirq.ops.H)
 
 
     def test_QulacsSimulator_Sgate(self):
-        """
-        """
-       
-        qubit_n = 3
-        qubits = [cirq.LineQubit(i) for i in range(qubit_n)]
-        circuit = cirq.Circuit()
-        circuit.append(cirq.ops.S(qubits[0]))
-        circuit.append(cirq.ops.S(qubits[1]))
-        circuit.append(cirq.ops.S(qubits[2]))
-        qulacs_result = QulacsSimulator().simulate(circuit)
-        actual = qulacs_result.final_state
-
-        qubit_n = 3
-        qubits = [cirq.LineQubit(i) for i in range(qubit_n)]
-        circuit = cirq.Circuit()
-        circuit.append(cirq.ops.S(qubits[0]))
-        circuit.append(cirq.ops.S(qubits[1]))
-        circuit.append(cirq.ops.S(qubits[2]))
-        cirq_result = cirq.Simulator().simulate(circuit)
-        expected = cirq_result.final_state
-
-        assert_array_equal(actual, expected)
+        self.check_single_qubit_gate(cirq.ops.S)
 
 
     def test_QulacsSimulator_Tgate(self):
-        """
-        """
-       
-        qubit_n = 3
-        qubits = [cirq.LineQubit(i) for i in range(qubit_n)]
-        circuit = cirq.Circuit()
-        circuit.append(cirq.ops.T(qubits[0]))
-        circuit.append(cirq.ops.T(qubits[1]))
-        circuit.append(cirq.ops.T(qubits[2]))
-        qulacs_result = QulacsSimulator().simulate(circuit)
-        actual = qulacs_result.final_state
-
-        qubit_n = 3
-        qubits = [cirq.LineQubit(i) for i in range(qubit_n)]
-        circuit = cirq.Circuit()
-        circuit.append(cirq.ops.T(qubits[0]))
-        circuit.append(cirq.ops.T(qubits[1]))
-        circuit.append(cirq.ops.T(qubits[2]))
-        cirq_result = cirq.Simulator().simulate(circuit)
-        expected = cirq_result.final_state
-
-        assert_array_equal(actual, expected)
+        self.check_single_qubit_gate(cirq.ops.T)
 
 
     def test_QulacsSimulator_RXgate(self):
-        """
-        """
-       
-        qubit_n = 3
-        qubits = [cirq.LineQubit(i) for i in range(qubit_n)]
-        circuit = cirq.Circuit()
-        circuit.append(cirq.ops.Rx(np.pi/5.5).on(qubits[0]))
-        circuit.append(cirq.ops.Rx(np.pi/5.5).on(qubits[1]))
-        circuit.append(cirq.ops.Rx(np.pi/5.5).on(qubits[2]))
-        qulacs_result = QulacsSimulator().simulate(circuit)
-        actual = qulacs_result.final_state
-
-        qubit_n = 3
-        qubits = [cirq.LineQubit(i) for i in range(qubit_n)]
-        circuit = cirq.Circuit()
-        circuit.append(cirq.ops.Rx(np.pi/5.5).on(qubits[0]))
-        circuit.append(cirq.ops.Rx(np.pi/5.5).on(qubits[1]))
-        circuit.append(cirq.ops.Rx(np.pi/5.5).on(qubits[2]))
-        cirq_result = cirq.Simulator().simulate(circuit)
-        expected = cirq_result.final_state
-
-        assert_allclose(actual, expected, rtol=1e-5, atol=0)
+        self.check_single_qubit_rotation_gate(cirq.ops.Rx)
 
 
     def test_QulacsSimulator_RYgate(self):
-        """
-        """
-       
-        qubit_n = 3
-        qubits = [cirq.LineQubit(i) for i in range(qubit_n)]
-        circuit = cirq.Circuit()
-        circuit.append(cirq.ops.Ry(np.pi/5.5).on(qubits[0]))
-        circuit.append(cirq.ops.Ry(np.pi/5.5).on(qubits[1]))
-        circuit.append(cirq.ops.Ry(np.pi/5.5).on(qubits[2]))
-        qulacs_result = QulacsSimulator().simulate(circuit)
-        actual = qulacs_result.final_state
-
-        qubit_n = 3
-        qubits = [cirq.LineQubit(i) for i in range(qubit_n)]
-        circuit = cirq.Circuit()
-        circuit.append(cirq.ops.Ry(np.pi/5.5).on(qubits[0]))
-        circuit.append(cirq.ops.Ry(np.pi/5.5).on(qubits[1]))
-        circuit.append(cirq.ops.Ry(np.pi/5.5).on(qubits[2]))
-        cirq_result = cirq.Simulator().simulate(circuit)
-        expected = cirq_result.final_state
-
-        assert_allclose(actual, expected, rtol=1e-5, atol=0)
+        self.check_single_qubit_rotation_gate(cirq.ops.Ry)
 
 
     def test_QulacsSimulator_RZgate(self):
-        """
-        """
-       
-        qubit_n = 3
-        qubits = [cirq.LineQubit(i) for i in range(qubit_n)]
-        circuit = cirq.Circuit()
-        circuit.append(cirq.ops.Rz(np.pi/5.5).on(qubits[0]))
-        circuit.append(cirq.ops.Rz(np.pi/5.5).on(qubits[1]))
-        circuit.append(cirq.ops.Rz(np.pi/5.5).on(qubits[2]))
-        qulacs_result = QulacsSimulator().simulate(circuit)
-        actual = qulacs_result.final_state
-
-        qubit_n = 3
-        qubits = [cirq.LineQubit(i) for i in range(qubit_n)]
-        circuit = cirq.Circuit()
-        circuit.append(cirq.ops.Rz(np.pi/5.5).on(qubits[0]))
-        circuit.append(cirq.ops.Rz(np.pi/5.5).on(qubits[1]))
-        circuit.append(cirq.ops.Rz(np.pi/5.5).on(qubits[2]))
-        cirq_result = cirq.Simulator().simulate(circuit)
-        expected = cirq_result.final_state
-
-        assert_allclose(actual, expected, rtol=1e-5, atol=0)
+        self.check_single_qubit_rotation_gate(cirq.ops.Rz)
 
 
     def test_QulacsSimulator_Ugate(self):
-        """
-        """
-       
-        qubit_n = 3
-        qubits = [cirq.LineQubit(i) for i in range(qubit_n)]
+        qubits = [cirq.LineQubit(i) for i in range(self.qubit_n)]
         circuit = cirq.Circuit()
-        circuit.append(cirq.circuits.qasm_output.QasmUGate(0.1, 0.2, 0.3).on(qubits[0]))
-        circuit.append(cirq.circuits.qasm_output.QasmUGate(0.4, 0.5, 0.6).on(qubits[1]))
-        circuit.append(cirq.circuits.qasm_output.QasmUGate(0.7, 0.8, 0.9).on(qubits[2]))
-        qulacs_result = QulacsSimulator().simulate(circuit)
-        actual = qulacs_result.final_state
-
-        qubit_n = 3
-        qubits = [cirq.LineQubit(i) for i in range(qubit_n)]
-        circuit = cirq.Circuit()
-        circuit.append(cirq.circuits.qasm_output.QasmUGate(0.1, 0.2, 0.3).on(qubits[0]))
-        circuit.append(cirq.circuits.qasm_output.QasmUGate(0.4, 0.5, 0.6).on(qubits[1]))
-        circuit.append(cirq.circuits.qasm_output.QasmUGate(0.7, 0.8, 0.9).on(qubits[2]))
-        cirq_result = cirq.Simulator().simulate(circuit)
-        expected = cirq_result.final_state
-
-        assert_allclose(actual, expected, rtol=1e-5, atol=0)
+        for _ in range(self.test_repeat):
+            index = np.random.randint(self.qubit_n)
+            angle = np.random.rand(3)*np.pi*2
+            circuit.append(cirq.circuits.qasm_output.QasmUGate(angle[0], angle[1], angle[2]).on(qubits[index]))
+            self.check_result(circuit)
 
 
     def test_QulacsSimulator_CNOTgate(self):
-        """
-        """
-       
-        qubit_n = 3
-        qubits = [cirq.LineQubit(i) for i in range(qubit_n)]
-        circuit = cirq.Circuit()
-        circuit.append(cirq.ops.CNOT(qubits[0], qubits[1]))
-        circuit.append(cirq.ops.CNOT(qubits[1], qubits[2]))
-        qulacs_result = QulacsSimulator().simulate(circuit)
-        actual = qulacs_result.final_state
-
-        qubit_n = 3
-        qubits = [cirq.LineQubit(i) for i in range(qubit_n)]
-        circuit = cirq.Circuit()
-        circuit.append(cirq.ops.CNOT(qubits[0], qubits[1]))
-        circuit.append(cirq.ops.CNOT(qubits[1], qubits[2]))
-        cirq_result = cirq.Simulator().simulate(circuit)
-        expected = cirq_result.final_state
-
-        assert_array_equal(actual, expected)
+        self.check_two_qubit_gate(cirq.ops.CNOT)
 
 
     def test_QulacsSimulator_CZgate(self):
-        """
-        """
-       
-        qubit_n = 3
-        qubits = [cirq.LineQubit(i) for i in range(qubit_n)]
-        circuit = cirq.Circuit()
-        circuit.append(cirq.ops.CZ(qubits[0], qubits[1]))
-        circuit.append(cirq.ops.CZ(qubits[1], qubits[2]))
-        qulacs_result = QulacsSimulator().simulate(circuit)
-        actual = qulacs_result.final_state
-
-        qubit_n = 3
-        qubits = [cirq.LineQubit(i) for i in range(qubit_n)]
-        circuit = cirq.Circuit()
-        circuit.append(cirq.ops.CZ(qubits[0], qubits[1]))
-        circuit.append(cirq.ops.CZ(qubits[1], qubits[2]))
-        cirq_result = cirq.Simulator().simulate(circuit)
-        expected = cirq_result.final_state
-
-        assert_array_equal(actual, expected)
+        self.check_two_qubit_gate(cirq.ops.CZ)
 
 
     def test_QulacsSimulator_SWAPgate(self):
-        """
-        """
-       
-        qubit_n = 3
-        qubits = [cirq.LineQubit(i) for i in range(qubit_n)]
-        circuit = cirq.Circuit()
-        circuit.append(cirq.ops.SWAP(qubits[0], qubits[1]))
-        circuit.append(cirq.ops.SWAP(qubits[1], qubits[2]))
-        qulacs_result = QulacsSimulator().simulate(circuit)
-        actual = qulacs_result.final_state
+        self.check_two_qubit_gate(cirq.ops.SWAP)
 
-        qubit_n = 3
-        qubits = [cirq.LineQubit(i) for i in range(qubit_n)]
-        circuit = cirq.Circuit()
-        circuit.append(cirq.ops.SWAP(qubits[0], qubits[1]))
-        circuit.append(cirq.ops.SWAP(qubits[1], qubits[2]))
-        cirq_result = cirq.Simulator().simulate(circuit)
-        expected = cirq_result.final_state
 
-        assert_array_equal(actual, expected)
+    def test_QulacsSimulator_ISWAPgate(self):
+        self.check_two_qubit_gate(cirq.ops.ISWAP)
+
+
+    def test_QulacsSimulator_SingleQubitMatrixGate(self):
+        qubits = [cirq.LineQubit(i) for i in range(self.qubit_n)]
+        circuit = cirq.Circuit()
+        for _ in range(self.test_repeat):
+            for index in range(self.qubit_n):
+                angle = np.random.rand(3)*np.pi*2
+                circuit.append(cirq.circuits.qasm_output.QasmUGate(angle[0], angle[1], angle[2]).on(qubits[index]))
+            index = np.random.randint(self.qubit_n)
+            mat = unitary_group.rvs(2)
+            circuit.append(cirq.SingleQubitMatrixGate(mat).on(qubits[index]))
+            self.check_result(circuit)
 
 
     def test_QulacsSimulator_XXgate(self):
-        """
-        """
-       
-        qubit_n = 3
-        qubits = [cirq.LineQubit(i) for i in range(qubit_n)]
-        circuit = cirq.Circuit()
-        circuit.append(cirq.ops.XX(qubits[0], qubits[1]))
-        circuit.append(cirq.ops.XX(qubits[1], qubits[2]))
-        qulacs_result = QulacsSimulator().simulate(circuit)
-        actual = qulacs_result.final_state
-
-        qubit_n = 3
-        qubits = [cirq.LineQubit(i) for i in range(qubit_n)]
-        circuit = cirq.Circuit()
-        circuit.append(cirq.ops.XX(qubits[0], qubits[1]))
-        circuit.append(cirq.ops.XX(qubits[1], qubits[2]))
-        cirq_result = cirq.Simulator().simulate(circuit)
-        expected = cirq_result.final_state
-
-        assert_array_equal(actual, expected)
+        self.check_two_qubit_gate(cirq.ops.XX)
 
 
     def test_QulacsSimulator_YYgate(self):
-        """
-        """
-       
-        qubit_n = 3
-        qubits = [cirq.LineQubit(i) for i in range(qubit_n)]
-        circuit = cirq.Circuit()
-        circuit.append(cirq.ops.YY(qubits[0], qubits[1]))
-        circuit.append(cirq.ops.YY(qubits[1], qubits[2]))
-        qulacs_result = QulacsSimulator().simulate(circuit)
-        actual = qulacs_result.final_state
-
-        qubit_n = 3
-        qubits = [cirq.LineQubit(i) for i in range(qubit_n)]
-        circuit = cirq.Circuit()
-        circuit.append(cirq.ops.YY(qubits[0], qubits[1]))
-        circuit.append(cirq.ops.YY(qubits[1], qubits[2]))
-        cirq_result = cirq.Simulator().simulate(circuit)
-        expected = cirq_result.final_state
-
-        assert_array_equal(actual, expected)
+        self.check_two_qubit_gate(cirq.ops.YY)
 
 
     def test_QulacsSimulator_ZZgate(self):
-        """
-        """
-       
-        qubit_n = 3
-        qubits = [cirq.LineQubit(i) for i in range(qubit_n)]
-        circuit = cirq.Circuit()
-        circuit.append(cirq.ops.ZZ(qubits[0], qubits[1]))
-        circuit.append(cirq.ops.ZZ(qubits[1], qubits[2]))
-        qulacs_result = QulacsSimulator().simulate(circuit)
-        actual = qulacs_result.final_state
+        self.check_two_qubit_gate(cirq.ops.ZZ)
 
-        qubit_n = 3
-        qubits = [cirq.LineQubit(i) for i in range(qubit_n)]
-        circuit = cirq.Circuit()
-        circuit.append(cirq.ops.ZZ(qubits[0], qubits[1]))
-        circuit.append(cirq.ops.ZZ(qubits[1], qubits[2]))
-        cirq_result = cirq.Simulator().simulate(circuit)
-        expected = cirq_result.final_state
 
-        assert_array_equal(actual, expected)
+    def test_QulacsSimulator_TwoQubitMatrixGate(self):
+        qubits = [cirq.LineQubit(i) for i in range(self.qubit_n)]
+        circuit = cirq.Circuit()
+        all_indices = np.arange(self.qubit_n)
+        for _ in range(self.test_repeat):
+            np.random.shuffle(all_indices)
+            index = all_indices[:2]
+            mat = unitary_group.rvs(4)
+            circuit.append(cirq.TwoQubitMatrixGate(mat).on(qubits[index[0]], qubits[index[1]]))
+            self.check_result(circuit)
 
 
     def test_QulacsSimulator_CCXgate(self):
-        """
-        """
-       
-        qubit_n = 3
-        qubits = [cirq.LineQubit(i) for i in range(qubit_n)]
-        circuit = cirq.Circuit()
-        circuit.append(cirq.ops.CCX(qubits[0], qubits[1], qubits[2]))
-        qulacs_result = QulacsSimulator().simulate(circuit)
-        actual = qulacs_result.final_state
-
-        qubit_n = 3
-        qubits = [cirq.LineQubit(i) for i in range(qubit_n)]
-        circuit = cirq.Circuit()
-        circuit.append(cirq.ops.CCX(qubits[0], qubits[1], qubits[2]))
-        cirq_result = cirq.Simulator().simulate(circuit)
-        expected = cirq_result.final_state
-
-        assert_array_equal(actual, expected)
+        self.check_three_qubit_gate(cirq.ops.CCX)
 
 
     def test_QulacsSimulator_CCZgate(self):
-        """
-        """
-       
-        qubit_n = 3
-        qubits = [cirq.LineQubit(i) for i in range(qubit_n)]
-        circuit = cirq.Circuit()
-        circuit.append(cirq.ops.CCZ(qubits[0], qubits[1], qubits[2]))
-        qulacs_result = QulacsSimulator().simulate(circuit)
-        actual = qulacs_result.final_state
-
-        qubit_n = 3
-        qubits = [cirq.LineQubit(i) for i in range(qubit_n)]
-        circuit = cirq.Circuit()
-        circuit.append(cirq.ops.CCZ(qubits[0], qubits[1], qubits[2]))
-        cirq_result = cirq.Simulator().simulate(circuit)
-        expected = cirq_result.final_state
-
-        assert_array_equal(actual, expected)
+        self.check_three_qubit_gate(cirq.ops.CCZ)
 
 
     def test_QulacsSimulator_TOFFOLIgate(self):
-        """
-        """
-       
-        qubit_n = 3
-        qubits = [cirq.LineQubit(i) for i in range(qubit_n)]
-        circuit = cirq.Circuit()
-        circuit.append(cirq.ops.TOFFOLI(qubits[0], qubits[1], qubits[2]))
-        qulacs_result = QulacsSimulator().simulate(circuit)
-        actual = qulacs_result.final_state
+        self.check_three_qubit_gate(cirq.ops.TOFFOLI)
 
-        qubit_n = 3
-        qubits = [cirq.LineQubit(i) for i in range(qubit_n)]
-        circuit = cirq.Circuit()
-        circuit.append(cirq.ops.TOFFOLI(qubits[0], qubits[1], qubits[2]))
-        cirq_result = cirq.Simulator().simulate(circuit)
-        expected = cirq_result.final_state
 
-        assert_array_equal(actual, expected)
+    def test_QulacsSimulator_CSwapGate(self):
+        self.check_three_qubit_gate(cirq.ops.CSWAP)
 
 
     def test_QulacsSimulator_QuantumVolume(self):
-        """
-        """
-
         qubit_n = 20
         qubits = [cirq.LineQubit(i) for i in range(qubit_n)]
         circuit = cirq.Circuit()
         parse_qasm_to_QulacsCircuit('tests/quantum_volume_n20_d8_0_0.qasm', circuit, qubits)
-        qulacs_result = QulacsSimulator().simulate(circuit)
-        actual = qulacs_result.final_state
-
-        qubit_n = 20
-        qubits = [cirq.LineQubit(i) for i in range(qubit_n)]
-        circuit = cirq.Circuit()
-        parse_qasm_to_QulacsCircuit('tests/quantum_volume_n20_d8_0_0.qasm', circuit, qubits)
-        cirq_result = cirq.Simulator().simulate(circuit)
-        expected = cirq_result.final_state
-
-        assert_allclose(actual, expected, rtol=1e-2, atol=0)
+        self.check_result(circuit)
 
 
 

@@ -33,6 +33,8 @@ RUN pip3 install \
     cirq
 
 WORKDIR /
-RUN git clone -b src_code_refactoring https://github.com/qulacs/cirq-qulacs.git
+RUN git clone https://github.com/qulacs/cirq-qulacs.git
 WORKDIR /cirq-qulacs
 RUN python3 setup.py install
+
+WORKDIR /
