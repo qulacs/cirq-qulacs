@@ -32,10 +32,10 @@ class QulacsSimulator(Simulator):
         qubit_map = {q: i for i, q in enumerate(qubits)}
         state = wave_function.to_valid_state_vector(initial_state,
                                                     num_qubits,
-                                                    self._dtype)
+                                                    dtype = self._dtype)
 
         if len(circuit) == 0:
-            yield SparseSimulatorStep(state, {}, qubit_map, self._dtype)
+            yield SparseSimulatorStep(state, {}, qubit_map, dtype = self._dtype)
 
         def on_stuck(bad_op: ops.Operation):
             return TypeError(
@@ -43,14 +43,14 @@ class QulacsSimulator(Simulator):
                 "_unitary_ method, a _decompose_ method, "
                 "(_has_unitary_ + _apply_unitary_) methods,"
                 "(_has_mixture_ + _mixture_) methods, or are measurements."
-
                 ": {!r}".format(bad_op))
 
         def keep(potential_op: ops.Operation) -> bool:
             # The order of this is optimized to call has_xxx methods first.
-            return (protocols.has_unitary(potential_op)
-                    or protocols.has_mixture(potential_op)
-                    or protocols.is_measurement(potential_op))
+            return (protocols.has_unitary(potential_op) or
+                    protocols.has_mixture(potential_op) or
+                    protocols.is_measurement(potential_op) or
+                    isinstance(potential_op.gate, ops.ResetChannel))
 
         data = _StateAndBuffer(
             state=np.reshape(state, (2,) * num_qubits),
@@ -68,16 +68,20 @@ class QulacsSimulator(Simulator):
             measurements = collections.defaultdict(
                 list)  # type: Dict[str, List[bool]]
 
+            """
             non_display_ops = (op for op in moment
                                if not isinstance(op, (ops.SamplesDisplay,
                                                       ops.WaveFunctionDisplay,
                                                       ops.DensityMatrixDisplay
                                                       )))
-
             unitary_ops_and_measurements = protocols.decompose(
                 non_display_ops,
                 keep=keep,
                 on_stuck_raise=on_stuck)
+            """
+
+            unitary_ops_and_measurements = protocols.decompose(
+                moment, keep=keep, on_stuck_raise=on_stuck)
 
             for op in unitary_ops_and_measurements:
                 indices = [num_qubits - 1 - qubit_map[qubit] for qubit in op.qubits]
@@ -218,10 +222,10 @@ class QulacsSimulatorGpu(Simulator):
         qubit_map = {q: i for i, q in enumerate(qubits)}
         state = wave_function.to_valid_state_vector(initial_state,
                                                     num_qubits,
-                                                    self._dtype)
+                                                    dtype = self._dtype)
 
         if len(circuit) == 0:
-            yield SparseSimulatorStep(state, {}, qubit_map, self._dtype)
+            yield SparseSimulatorStep(state, {}, qubit_map, dtype = self._dtype)
 
         def on_stuck(bad_op: ops.Operation):
             return TypeError(
