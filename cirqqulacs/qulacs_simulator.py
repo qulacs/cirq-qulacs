@@ -1,388 +1,232 @@
-import re
-import collections
-from typing import Dict, Iterator, List, Union
+from typing import Dict, Iterator, List, Union, Any, Type, cast
 
 import numpy as np
+import collections
 import qulacs
-from cirq import circuits, ops, protocols
-from cirq.sim import wave_function
-from cirq import Simulator, SparseSimulatorStep
+from cirq import circuits, ops, protocols, schedules, study, value
+from cirq.sim import SimulatesFinalState, SimulationTrialResult, wave_function
 
+def _get_google_rotx(exponent : float) -> np.ndarray:
+    rot = exponent
+    g = np.exp(1.j*np.pi*rot/2)
+    c = np.cos(np.pi*rot/2)
+    s = np.sin(np.pi*rot/2)
+    mat = np.array([
+        [g*c, -1.j*g*s],
+        [-1.j*g*s, g*c]
+    ])
+    return mat
 
-# Mutable named tuple to hold state and a buffer.
-class _StateAndBuffer():
+def _get_google_rotz(exponent : float) -> np.ndarray:
+    return np.diag([1., np.exp(1.j*np.pi*exponent)])
 
-    def __init__(self, state, buffer):
-        self.state = state
-        self.buffer = buffer
+class QulacsSimulator(SimulatesFinalState):
+    def __init__(self, *, 
+            dtype: Type[np.number] = np.complex128, 
+            seed: value.RANDOM_STATE_LIKE = None):
+        self._dtype = dtype
+        self._prng = value.parse_random_state(seed)
 
+    def _get_qulacs_state(self, num_qubits: int):
+        return qulacs.QuantumState(num_qubits)
 
-class QulacsSimulator(Simulator):
+    def simulate_sweep(
+        self,
+        program: Union[circuits.Circuit, schedules.Schedule],
+        params: study.Sweepable,
+        qubit_order: ops.QubitOrderOrList = ops.QubitOrder.DEFAULT,
+        initial_state: Any = None,
+    ) -> List['SimulationTrialResult']:
+        """Simulates the supplied Circuit or Schedule with Qulacs
+        Args:
+            program: The circuit or schedule to simulate.
+            params: Parameters to run with the program.
+            qubit_order: Determines the canonical ordering of the qubits. This
+                is often used in specifying the initial state, i.e. the
+                ordering of the computational basis states.
+            initial_state: The initial state for the simulation. The form of
+                this state depends on the simulation implementation.  See
+                documentation of the implementing class for details.
+        Returns:
+            List of SimulationTrialResults for this run, one for each
+            possible parameter resolver.
+        """        
+        trial_results = []
+        # sweep for each parameters
+        resolvers = study.to_resolvers(params)
+        for resolver in resolvers:
 
-    def _base_iterator(
-            self,
-            circuit: circuits.Circuit,
-            qubit_order: ops.QubitOrderOrList,
-            initial_state: Union[int, np.ndarray],
-            perform_measurements: bool = True,
-    ) -> Iterator:
-        qubits = ops.QubitOrder.as_qubit_order(qubit_order).order_for(
-            circuit.all_qubits())
-        num_qubits = len(qubits)
-        qubit_map = {q: i for i, q in enumerate(qubits)}
-        state = wave_function.to_valid_state_vector(initial_state,
-                                                    num_qubits,
-                                                    self._dtype)
+            # result circuit
+            cirq_circuit = protocols.resolve_parameters(program, resolver)
+            qubits = ops.QubitOrder.as_qubit_order(qubit_order).order_for(cirq_circuit.all_qubits())
+            qubit_map = {q: i for i, q in enumerate(qubits)}
+            num_qubits = len(qubits)
 
-        if len(circuit) == 0:
-            yield SparseSimulatorStep(state, {}, qubit_map, self._dtype)
+            # create state
+            qulacs_state = self._get_qulacs_state(num_qubits)
+            if initial_state is not None:
+                cirq_state = wave_function.to_valid_state_vector(initial_state,num_qubits)
+                qulacs_state.load(cirq_state)
+                del cirq_state
 
-        def on_stuck(bad_op: ops.Operation):
-            return TypeError(
-                "Can't simulate unknown operations that don't specify a "
-                "_unitary_ method, a _decompose_ method, "
-                "(_has_unitary_ + _apply_unitary_) methods,"
-                "(_has_mixture_ + _mixture_) methods, or are measurements."
+            # create circuit
 
-                ": {!r}".format(bad_op))
+            ## function called when circuit contains not tractable operations
+            def on_stuck(bad_op: ops.Operation):
+                return TypeError(
+                    "Can't simulate unknown operations that don't specify a "
+                    "_unitary_ method, a _decompose_ method, "
+                    "(_has_unitary_ + _apply_unitary_) methods,"
+                    "(_has_mixture_ + _mixture_) methods, or are measurements."
+                    ": {!r}".format(bad_op))
 
-        def keep(potential_op: ops.Operation) -> bool:
-            # The order of this is optimized to call has_xxx methods first.
-            return (protocols.has_unitary(potential_op)
-                    or protocols.has_mixture(potential_op)
-                    or protocols.is_measurement(potential_op))
+            ## return True if operation is tractable with qulacs
+            def keep(potential_op: ops.Operation) -> bool:
+                return (protocols.has_unitary(potential_op) or
+                        protocols.has_mixture(potential_op) or
+                        protocols.is_measurement(potential_op) or
+                        isinstance(potential_op.gate, ops.ResetChannel))
 
-        data = _StateAndBuffer(
-            state=np.reshape(state, (2,) * num_qubits),
-            buffer=np.empty((2,) * num_qubits, dtype=self._dtype))
+            qulacs_circuit = qulacs.QuantumCircuit(num_qubits)
+            address_to_key = {}
+            register_address = 0
+            for moment in cirq_circuit:
+                operations = protocols.decompose(
+                    moment, keep=keep, on_stuck_raise=on_stuck)
 
-        shape = np.array(data.state).shape
+                for op in operations:
+                    # In qulacs, the lowest bit is right, though it is left in cirq.
+                    # we need to invert indices
+                    indices = [num_qubits - 1 - qubit_map[qubit] for qubit in op.qubits]
 
-        # Qulacs
-        qulacs_flag = 0
-        qulacs_state = qulacs.QuantumState(int(num_qubits))
-        qulacs_circuit = qulacs.QuantumCircuit(int(num_qubits))
+                    if isinstance(op.gate, ops.ResetChannel):
+                        qulacs_circuit.update_quantum_state(qulacs_state)
+                        qulacs_state.set_zero_state()
+                        qulacs_circuit = qulacs.QuantumCircuit(num_qubits)
 
-        for moment in circuit:
+                    elif protocols.has_unitary(op):
+                        self._append_gate(op, qulacs_circuit, indices)
 
-            measurements = collections.defaultdict(
-                list)  # type: Dict[str, List[bool]]
+                    elif protocols.is_measurement(op):
+                        for index in indices:
+                            qulacs_circuit.add_gate(qulacs.gate.Measurement(index, register_address))
+                            address_to_key[register_address] = protocols.measurement_key(op.gate)
+                            register_address += 1
 
-            non_display_ops = (op for op in moment
-                               if not isinstance(op, (ops.SamplesDisplay,
-                                                      ops.WaveFunctionDisplay,
-                                                      ops.DensityMatrixDisplay
-                                                      )))
-
-            unitary_ops_and_measurements = protocols.decompose(
-                non_display_ops,
-                keep=keep,
-                on_stuck_raise=on_stuck)
-
-            for op in unitary_ops_and_measurements:
-                indices = [num_qubits - 1 - qubit_map[qubit] for qubit in op.qubits]
-                if protocols.has_unitary(op):
-
-                    # single qubit unitary gates
-                    if isinstance(op.gate, ops.pauli_gates._PauliX):
-                        qulacs_circuit.add_X_gate(indices[0])
-                    elif isinstance(op.gate, ops.pauli_gates._PauliY):
-                        qulacs_circuit.add_Y_gate(indices[0])
-                    elif isinstance(op.gate, ops.pauli_gates._PauliZ):
-                        qulacs_circuit.add_Z_gate(indices[0])
-                    elif isinstance(op.gate, ops.common_gates.HPowGate):
-                        qulacs_circuit.add_H_gate(indices[0])
-                    elif isinstance(op.gate, ops.common_gates.XPowGate):
+                    elif protocols.has_mixture(op):
                         indices.reverse()
-                        qulacs_circuit.add_dense_matrix_gate(indices,
-                                                             op._unitary_())
-                    elif isinstance(op.gate, ops.common_gates.YPowGate):
-                        indices.reverse()
-                        qulacs_circuit.add_dense_matrix_gate(indices,
-                                                             op._unitary_())
-                    elif isinstance(op.gate, ops.common_gates.ZPowGate):
-                        indices.reverse()
-                        qulacs_circuit.add_dense_matrix_gate(indices,
-                                                             op._unitary_())
-                    elif isinstance(op.gate, circuits.qasm_output.QasmUGate):
-                        indices.reverse()
-                        qulacs_circuit.add_dense_matrix_gate(indices,
-                                                             op._unitary_())
-                    elif isinstance(op.gate, ops.matrix_gates.SingleQubitMatrixGate):
-                        qulacs_circuit.add_dense_matrix_gate(indices,
-                                                             op._unitary_())
+                        qulacs_gates = []
+                        gate = cast(ops.GateOperation, op).gate
+                        channel = protocols.channel(gate)
+                        for krauss in channel:
+                            krauss = krauss.astype(np.complex128)
+                            qulacs_gate = qulacs.gate.DenseMatrix(indices, krauss)
+                            qulacs_gates.append(qulacs_gate)
+                        qulacs_cptp_map = qulacs.gate.CPTP(qulacs_gates)
+                        qulacs.circuit.add_gate(qulacs_cptp_map)
 
-                    # Two Qubit Unitary Gates
-                    elif isinstance(op.gate, ops.common_gates.CNotPowGate):
-                        qulacs_circuit.add_CNOT_gate(indices[0], indices[1])
-                    elif isinstance(op.gate, ops.common_gates.CZPowGate):
-                        qulacs_circuit.add_CZ_gate(indices[0], indices[1])
-                    elif isinstance(op.gate, ops.common_gates.SwapPowGate):
-                        qulacs_circuit.add_SWAP_gate(indices[0], indices[1])
-                    elif isinstance(op.gate, ops.common_gates.ISwapPowGate):
-                        indices.reverse()
-                        qulacs_circuit.add_dense_matrix_gate(indices,
-                                                             op._unitary_())
-                    elif isinstance(op.gate, ops.parity_gates.XXPowGate):
-                        indices.reverse()
-                        qulacs_circuit.add_dense_matrix_gate(indices,
-                                                             op._unitary_())
-                    elif isinstance(op.gate, ops.parity_gates.YYPowGate):
-                        indices.reverse()
-                        qulacs_circuit.add_dense_matrix_gate(indices,
-                                                             op._unitary_())
-                    elif isinstance(op.gate, ops.parity_gates.ZZPowGate):
-                        indices.reverse()
-                        qulacs_circuit.add_dense_matrix_gate(indices,
-                                                             op._unitary_())
-                    elif isinstance(op.gate, ops.matrix_gates.TwoQubitMatrixGate):
-                        indices.reverse()
-                        qulacs_circuit.add_dense_matrix_gate(indices,
-                                                             op._unitary_())
+            # perform simulation
+            qulacs_circuit.update_quantum_state(qulacs_state)
 
-                    # Three Qubit Unitary Gates
-                    elif isinstance(op.gate, ops.three_qubit_gates.CCXPowGate):
-                        indices.reverse()
-                        qulacs_circuit.add_dense_matrix_gate(indices,
-                                                             op._unitary_())
-                    elif isinstance(op.gate, ops.three_qubit_gates.CCZPowGate):
-                        indices.reverse()
-                        qulacs_circuit.add_dense_matrix_gate(indices,
-                                                             op._unitary_())
-                    elif isinstance(op.gate, ops.three_qubit_gates.CSwapGate):
-                        indices.reverse()
-                        qulacs_circuit.add_dense_matrix_gate(indices,
-                                                             op._unitary_())
+            # fetch final state and measurement results
+            final_state = qulacs_state.get_vector()
+            measurements = collections.defaultdict(list)
+            for register_index in range(register_address):
+                key = address_to_key[register_index]
+                value = qulacs_state.get_classical_value(register_index)
+                measurements[key].append(value)
 
-                    qulacs_flag = 1
+            # create result for this parameter
+            result = SimulationTrialResult(
+                params = resolver,
+                measurements = measurements,
+                final_simulator_state = final_state
+            )
+            trial_results.append(result)
 
-                elif protocols.is_measurement(op):
-                    # Do measurements second, since there may be mixtures that
-                    # operate as measurements.
-                    # TODO: support measurement outside the computational basis.
+            # release memory
+            del qulacs_state
+            del qulacs_circuit
 
-                    if perform_measurements:
-                        if qulacs_flag == 1:
-                            self._simulate_on_qulacs(data, shape, qulacs_state, qulacs_circuit)
-                            qulacs_flag = 0
-                        self._simulate_measurement(op, data, indices,
-                                                   measurements, num_qubits)
+        return trial_results
 
-                elif protocols.has_mixture(op):
-                    if qulacs_flag == 1:
-                        self._simulate_on_qulacs(data, shape, qulacs_state, qulacs_circuit)
-                        qulacs_flag = 0
-                        qulacs_circuit = qulacs.QuantumCircuit(int(num_qubits))
-                    self._simulate_mixture(op, data, indices)
+    def _append_gate(self, op : ops.GateOperation, qulacs_circuit : qulacs.QuantumCircuit, indices : np.array):
+        # One qubit gate
+        if isinstance(op.gate, ops.pauli_gates._PauliX):
+            qulacs_circuit.add_X_gate(indices[0])
+        elif isinstance(op.gate, ops.pauli_gates._PauliY):
+            qulacs_circuit.add_Y_gate(indices[0])
+        elif isinstance(op.gate, ops.pauli_gates._PauliZ):
+            qulacs_circuit.add_Z_gate(indices[0])
+        elif isinstance(op.gate, ops.common_gates.HPowGate):
+            qulacs_circuit.add_H_gate(indices[0])
+        elif isinstance(op.gate, ops.common_gates.XPowGate):
+            qulacs_circuit.add_RX_gate(indices[0], -np.pi*op.gate._exponent)
+        elif isinstance(op.gate, ops.common_gates.YPowGate):
+            qulacs_circuit.add_RY_gate(indices[0], -np.pi*op.gate._exponent)
+        elif isinstance(op.gate, ops.common_gates.ZPowGate):
+            qulacs_circuit.add_RZ_gate(indices[0], -np.pi*op.gate._exponent)
 
-        if qulacs_flag == 1:
-            self._simulate_on_qulacs(data, shape, qulacs_state, qulacs_circuit)
-            qulacs_flag = 0
+        # Two qubit gate
+        elif isinstance(op.gate, ops.common_gates.CNotPowGate):
+            if op.gate._exponent == 1.0:
+                qulacs_circuit.add_CNOT_gate(indices[0], indices[1])
+            else:
+                mat = _get_google_rotx(op.gate._exponent)
+                gate = qulacs.gate.DenseMatrix(indices[1], mat)
+                gate.add_control_qubit(indices[0],1)
+                qulacs_circuit.add_gate(gate)
+        elif isinstance(op.gate, ops.common_gates.CZPowGate):
+            if op.gate._exponent == 1.0:
+                qulacs_circuit.add_CZ_gate(indices[0], indices[1])
+            else:
+                mat = _get_google_rotz(op.gate._exponent)
+                gate = qulacs.gate.DenseMatrix(indices[1], mat)
+                gate.add_control_qubit(indices[0],1)
+                qulacs_circuit.add_gate(gate)
+        elif isinstance(op.gate, ops.common_gates.SwapPowGate):
+            if op.gate._exponent == 1.0:
+                qulacs_circuit.add_SWAP_gate(indices[0], indices[1])
+            else:
+                qulacs_circuit.add_dense_matrix_gate(indices,op._unitary_())
+        elif isinstance(op.gate, ops.parity_gates.XXPowGate):
+            qulacs_circuit.add_multi_Pauli_rotation_gate(indices, [1,1], -np.pi*op.gate._exponent)
+        elif isinstance(op.gate, ops.parity_gates.YYPowGate):
+            qulacs_circuit.add_multi_Pauli_rotation_gate(indices, [2,2], -np.pi*op.gate._exponent)
+        elif isinstance(op.gate, ops.parity_gates.ZZPowGate):
+            qulacs_circuit.add_multi_Pauli_rotation_gate(indices, [3,3], -np.pi*op.gate._exponent)
 
-        del qulacs_state
-        del qulacs_circuit
+        # Three qubit gate
+        elif isinstance(op.gate, ops.three_qubit_gates.CCXPowGate):
+            mat = _get_google_rotx(op.gate._exponent)
+            gate = qulacs.gate.DenseMatrix(indices[2], mat)
+            gate.add_control_qubit(indices[0],1)
+            gate.add_control_qubit(indices[1],1)
+            qulacs_circuit.add_gate(gate)
+        elif isinstance(op.gate, ops.three_qubit_gates.CCZPowGate):
+            mat = _get_google_rotz(op.gate._exponent)
+            gate = qulacs.gate.DenseMatrix(indices[2], mat)
+            gate.add_control_qubit(indices[0],1)
+            gate.add_control_qubit(indices[1],1)
+            qulacs_circuit.add_gate(gate)
+        elif isinstance(op.gate, ops.three_qubit_gates.CSwapGate):
+            mat = np.zeros(shape=(4,4))
+            mat[0,0] = 1; mat[1,2] = 1; mat[2,1] = 1; mat[3,3] = 1
+            gate = qulacs.gate.DenseMatrix(indices[1:], mat)
+            gate.add_control_qubit(indices[0],1)
+            qulacs_circuit.add_gate(gate)
 
-        yield SparseSimulatorStep(
-            state_vector=data.state,
-            measurements=measurements,
-            qubit_map=qubit_map,
-            dtype=self._dtype)
-
-
-    def _simulate_on_qulacs(
-            self,
-            data: _StateAndBuffer,
-            shape: tuple,
-            qulacs_state: qulacs.QuantumState,
-            qulacs_circuit: qulacs.QuantumCircuit,
-    ) -> None:
-        data.buffer = data.state
-        cirq_state = np.array(data.state).flatten().astype(np.complex64)
-        qulacs_state.load(cirq_state)
-        qulacs_circuit.update_quantum_state(qulacs_state)
-        data.state = qulacs_state.get_vector().reshape(shape)
+        # Misc
+        else:
+            indices.reverse()
+            qulacs_circuit.add_dense_matrix_gate(indices,op._unitary_())
 
 
-class QulacsSimulatorGpu(Simulator):
+class QulacsSimulatorGpu(QulacsSimulator):
+    def _get_qulacs_state(self, num_qubits : int):
+        try:
+            state = qulacs.QuantumStateGpu(num_qubits)
+            return state
+        except AttributeError:
+            raise Exception("GPU simulator is not installed")
 
-    def _base_iterator(
-            self,
-            circuit: circuits.Circuit,
-            qubit_order: ops.QubitOrderOrList,
-            initial_state: Union[int, np.ndarray],
-            perform_measurements: bool = True,
-    ) -> Iterator:
-        qubits = ops.QubitOrder.as_qubit_order(qubit_order).order_for(
-            circuit.all_qubits())
-        num_qubits = len(qubits)
-        qubit_map = {q: i for i, q in enumerate(qubits)}
-        state = wave_function.to_valid_state_vector(initial_state,
-                                                    num_qubits,
-                                                    self._dtype)
-
-        if len(circuit) == 0:
-            yield SparseSimulatorStep(state, {}, qubit_map, self._dtype)
-
-        def on_stuck(bad_op: ops.Operation):
-            return TypeError(
-                "Can't simulate unknown operations that don't specify a "
-                "_unitary_ method, a _decompose_ method, "
-                "(_has_unitary_ + _apply_unitary_) methods,"
-                "(_has_mixture_ + _mixture_) methods, or are measurements."
-
-                ": {!r}".format(bad_op))
-
-        def keep(potential_op: ops.Operation) -> bool:
-            # The order of this is optimized to call has_xxx methods first.
-            return (protocols.has_unitary(potential_op)
-                    or protocols.has_mixture(potential_op)
-                    or protocols.is_measurement(potential_op))
-
-        data = _StateAndBuffer(
-            state=np.reshape(state, (2,) * num_qubits),
-            buffer=np.empty((2,) * num_qubits, dtype=self._dtype))
-
-        shape = np.array(data.state).shape
-
-        # Qulacs
-        qulacs_flag = 0
-        qulacs_state = qulacs.QuantumStateGpu(int(num_qubits))
-        qulacs_circuit = qulacs.QuantumCircuit(int(num_qubits))
-
-        for moment in circuit:
-
-            measurements = collections.defaultdict(
-                list)  # type: Dict[str, List[bool]]
-
-            non_display_ops = (op for op in moment
-                               if not isinstance(op, (ops.SamplesDisplay,
-                                                      ops.WaveFunctionDisplay,
-                                                      ops.DensityMatrixDisplay
-                                                      )))
-
-            unitary_ops_and_measurements = protocols.decompose(
-                non_display_ops,
-                keep=keep,
-                on_stuck_raise=on_stuck)
-
-            for op in unitary_ops_and_measurements:
-                indices = [num_qubits - 1 - qubit_map[qubit] for qubit in op.qubits]
-                if protocols.has_unitary(op):
-
-                    # single qubit unitary gates
-                    if isinstance(op.gate, ops.pauli_gates._PauliX):
-                        qulacs_circuit.add_X_gate(indices[0])
-                    elif isinstance(op.gate, ops.pauli_gates._PauliY):
-                        qulacs_circuit.add_Y_gate(indices[0])
-                    elif isinstance(op.gate, ops.pauli_gates._PauliZ):
-                        qulacs_circuit.add_Z_gate(indices[0])
-                    elif isinstance(op.gate, ops.common_gates.HPowGate):
-                        qulacs_circuit.add_H_gate(indices[0])
-                    elif isinstance(op.gate, ops.common_gates.XPowGate):
-                        indices.reverse()
-                        qulacs_circuit.add_dense_matrix_gate(indices,
-                                                             op._unitary_())
-                    elif isinstance(op.gate, ops.common_gates.YPowGate):
-                        indices.reverse()
-                        qulacs_circuit.add_dense_matrix_gate(indices,
-                                                             op._unitary_())
-                    elif isinstance(op.gate, ops.common_gates.ZPowGate):
-                        indices.reverse()
-                        qulacs_circuit.add_dense_matrix_gate(indices,
-                                                             op._unitary_())
-                    elif isinstance(op.gate, circuits.qasm_output.QasmUGate):
-                        indices.reverse()
-                        qulacs_circuit.add_dense_matrix_gate(indices,
-                                                             op._unitary_())
-                    elif isinstance(op.gate, ops.matrix_gates.SingleQubitMatrixGate):
-                        qulacs_circuit.add_dense_matrix_gate(indices,
-                                                             op._unitary_())
-
-                    # Two Qubit Unitary Gates
-                    elif isinstance(op.gate, ops.common_gates.CNotPowGate):
-                        qulacs_circuit.add_CNOT_gate(indices[0], indices[1])
-                    elif isinstance(op.gate, ops.common_gates.CZPowGate):
-                        qulacs_circuit.add_CZ_gate(indices[0], indices[1])
-                    elif isinstance(op.gate, ops.common_gates.SwapPowGate):
-                        qulacs_circuit.add_SWAP_gate(indices[0], indices[1])
-                    elif isinstance(op.gate, ops.common_gates.ISwapPowGate):
-                        indices.reverse()
-                        qulacs_circuit.add_dense_matrix_gate(indices,
-                                                             op._unitary_())
-                    elif isinstance(op.gate, ops.parity_gates.XXPowGate):
-                        indices.reverse()
-                        qulacs_circuit.add_dense_matrix_gate(indices,
-                                                             op._unitary_())
-                    elif isinstance(op.gate, ops.parity_gates.YYPowGate):
-                        indices.reverse()
-                        qulacs_circuit.add_dense_matrix_gate(indices,
-                                                             op._unitary_())
-                    elif isinstance(op.gate, ops.parity_gates.ZZPowGate):
-                        indices.reverse()
-                        qulacs_circuit.add_dense_matrix_gate(indices,
-                                                             op._unitary_())
-                    elif isinstance(op.gate, ops.matrix_gates.TwoQubitMatrixGate):
-                        indices.reverse()
-                        qulacs_circuit.add_dense_matrix_gate(indices,
-                                                             op._unitary_())
-
-                    # Three Qubit Unitary Gates
-                    elif isinstance(op.gate, ops.three_qubit_gates.CCXPowGate):
-                        indices.reverse()
-                        qulacs_circuit.add_dense_matrix_gate(indices,
-                                                             op._unitary_())
-                    elif isinstance(op.gate, ops.three_qubit_gates.CCZPowGate):
-                        indices.reverse()
-                        qulacs_circuit.add_dense_matrix_gate(indices,
-                                                             op._unitary_())
-                    elif isinstance(op.gate, ops.three_qubit_gates.CSwapGate):
-                        indices.reverse()
-                        qulacs_circuit.add_dense_matrix_gate(indices,
-                                                             op._unitary_())
-
-                    qulacs_flag = 1
-
-                elif protocols.is_measurement(op):
-                    # Do measurements second, since there may be mixtures that
-                    # operate as measurements.
-                    # TODO: support measurement outside the computational basis.
-
-                    if perform_measurements:
-                        if qulacs_flag == 1:
-                            self._simulate_on_qulacs(data, shape, qulacs_state, qulacs_circuit)
-                            qulacs_flag = 0
-                        self._simulate_measurement(op, data, indices,
-                                                   measurements, num_qubits)
-
-                elif protocols.has_mixture(op):
-                    if qulacs_flag == 1:
-                        self._simulate_on_qulacs(data, shape, qulacs_state, qulacs_circuit)
-                        qulacs_flag = 0
-                        qulacs_circuit = qulacs.QuantumCircuit(int(num_qubits))
-                    self._simulate_mixture(op, data, indices)
-
-        if qulacs_flag == 1:
-            self._simulate_on_qulacs(data, shape, qulacs_state, qulacs_circuit)
-            qulacs_flag = 0
-
-        del qulacs_state
-        del qulacs_circuit
-
-        yield SparseSimulatorStep(
-            state_vector=data.state,
-            measurements=measurements,
-            qubit_map=qubit_map,
-            dtype=self._dtype)
-
-    def _simulate_on_qulacs(
-            self,
-            data: _StateAndBuffer,
-            shape: tuple,
-            qulacs_state: qulacs.QuantumState,
-            qulacs_circuit: qulacs.QuantumCircuit,
-    ) -> None:
-        data.buffer = data.state
-        cirq_state = np.array(data.state).flatten().astype(np.complex64)
-        qulacs_state.load(cirq_state)
-        qulacs_circuit.update_quantum_state(qulacs_state)
-        data.state = qulacs_state.get_vector().reshape(shape)

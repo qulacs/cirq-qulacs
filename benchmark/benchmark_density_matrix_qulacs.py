@@ -59,8 +59,11 @@ def main():
 
                 state = DensityMatrix(nqubits)
                 start = time.time()
-                circuit.update_quantum_state(state)
-                elapsed_time = time.time() - start
+                rep = 0
+                while time.time()-start < 1.0:
+                    circuit.update_quantum_state(state)
+                    rep+=1
+                elapsed_time = (time.time() - start)/rep
                 f.write('{},{},{}\n'.format(nqubits, niter, elapsed_time))
                 print('cpu  {},{},{}'.format(nqubits, niter, elapsed_time))
                 
