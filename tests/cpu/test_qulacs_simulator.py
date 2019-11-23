@@ -5,7 +5,7 @@ from numpy.testing import assert_array_equal, assert_allclose
 from scipy.stats import unitary_group
 
 import cirq
-from cirqqulacs import QulacsSimulator, QulacsSimulatorGpu
+from cirqqulacs import QulacsSimulator
 
 
 
@@ -151,7 +151,6 @@ class TestQulacsSimulator(unittest.TestCase):
             circuit.append(gate_op_angle(qubits[index[0]], qubits[index[1]], qubits[index[2]]))
             self.check_result(circuit)
 
-
     def test_QulacsSimulator_Xgate(self):
         self.check_single_qubit_gate(cirq.ops.X)
 
@@ -233,15 +232,11 @@ class TestQulacsSimulator(unittest.TestCase):
     def test_QulacsSimulator_TOFFOLIgate(self):
         self.check_three_qubit_gate(cirq.ops.TOFFOLI)
 
-    def test_QulacsSimulator_TOFFOLIgate(self):
-        self.check_three_qubit_gate(cirq.ops.FREDKIN)
-
     def test_QulacsSimulator_CCXPowgate(self):
         self.check_three_qubit_rotation_gate(cirq.ops.CCXPowGate)
 
     def test_QulacsSimulator_CCZPowgate(self):
         self.check_three_qubit_rotation_gate(cirq.ops.CCZPowGate)
-
 
     def test_QulacsSimulator_Ugate(self):
         qubits = [cirq.LineQubit(i) for i in range(self.qubit_n)]
@@ -283,28 +278,4 @@ class TestQulacsSimulator(unittest.TestCase):
         self.check_result(circuit)
 
 if __name__ == "__main__":
-    #unittest.main()
-    dtype = np.complex128
-    qubits = [cirq.LineQubit(i) for i in range(5)]
-    circuit = cirq.Circuit()
-    indices = np.arange(5)
-    np.random.shuffle(indices)
-    for index in indices[:3]:
-        circuit.append(cirq.X(qubits[index]))
-    np.random.shuffle(qubits)
-    print(indices,qubits)
-    circuit.append(cirq.measure(*qubits))
-
-    cirq_result = cirq.Simulator(dtype=dtype).simulate(circuit)
-    print("***")
-    print(type(cirq_result))
-    print(cirq_result)
-    print(cirq_result.measurements)
-    print("***")
-
-    simulator = QulacsSimulator(dtype=dtype)
-    qulacs_result = simulator.simulate(circuit)
-    print("***")
-    print(repr(qulacs_result))
-    print(qulacs_result)
-    print("***")
+    unittest.main()

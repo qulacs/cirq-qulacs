@@ -22,25 +22,9 @@ class QulacsDensityMatrixSimulator(DensityMatrixSimulator):
             num_qubits = len(qubits)
             qubit_map = {q: i for i, q in enumerate(qubits)}
             matrix = density_matrix_utils.to_valid_density_matrix(
-                initial_state, num_qubits, self._dtype)
+                initial_state, num_qubits, dtype = self._dtype)
             if len(circuit) == 0:
-                yield DensityMatrixStepResult(matrix, {}, qubit_map, self._dtype)
-
-            def on_stuck(bad_op: ops.Operation):
-                return TypeError(
-                    "Can't simulate operations that don't implement "
-                    "SupportsUnitary, SupportsApplyUnitary, SupportsMixture, "
-                    "SupportsChannel or is a measurement: {!r}".format(bad_op))
-
-            def keep(potential_op: ops.Operation) -> bool:
-                return (protocols.has_channel(potential_op)
-                        or (ops.op_gate_of_type(potential_op,
-                                                ops.MeasurementGate) is not None)
-                        or isinstance(potential_op,
-                                    (ops.SamplesDisplay,
-                                    ops.WaveFunctionDisplay,
-                                    ops.DensityMatrixDisplay))
-                        )
+                yield DensityMatrixStepResult(matrix, {}, qubit_map, dtype = self._dtype)
 
             matrix = np.reshape(matrix, (2**num_qubits, 2**num_qubits))
             noisy_moments = self.noise.noisy_moments(circuit,
@@ -52,28 +36,16 @@ class QulacsDensityMatrixSimulator(DensityMatrixSimulator):
             for moment in noisy_moments:
                 measurements = collections.defaultdict(
                     list)  # type: Dict[str, List[bool]]
-
-                channel_ops_and_measurements = protocols.decompose(
-                    moment, keep=keep, on_stuck_raise=on_stuck)
-
-                for op in channel_ops_and_measurements:
-                    #indices = [qubit_map[qubit] for qubit in op.qubits]
+                operations = moment.operations
+                for op in operations:
                     indices = [num_qubits - 1 - qubit_map[qubit] for qubit in op.qubits]
                     indices.reverse()
-                    if isinstance(op,
-                                (ops.SamplesDisplay,
-                                    ops.WaveFunctionDisplay,
-                                    ops.DensityMatrixDisplay)):
-                        continue
-                    # TODO: support more general measurements.
 
-                    meas = ops.op_gate_of_type(op, ops.MeasurementGate)
-                    if meas:
+                    if isinstance(op, ops.MeasurementGate):
                         # Not implemented
                         raise NotImplementedError("Measurement is not supported in qulacs simulator")
 
                     else:
-                        # TODO: Use apply_channel similar to apply_unitary.
                         gate = cast(ops.GateOperation, op).gate
                         channel = protocols.channel(gate)
 

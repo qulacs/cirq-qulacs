@@ -189,18 +189,21 @@ class QulacsSimulator(SimulatesFinalState):
             qulacs_circuit.add_dense_matrix_gate(indices, mat)
 
         # Three qubit gate
-        elif isinstance(op.gate, ops.three_qubit_gates.CCXPowGate):
-            mat = _get_google_rotx(op.gate._exponent)
-            gate = qulacs.gate.DenseMatrix(indices[2], mat)
-            gate.add_control_qubit(indices[0],1)
-            gate.add_control_qubit(indices[1],1)
-            qulacs_circuit.add_gate(gate)
-        elif isinstance(op.gate, ops.three_qubit_gates.CCZPowGate):
-            mat = _get_google_rotz(op.gate._exponent)
-            gate = qulacs.gate.DenseMatrix(indices[2], mat)
-            gate.add_control_qubit(indices[0],1)
-            gate.add_control_qubit(indices[1],1)
-            qulacs_circuit.add_gate(gate)
+            """
+            # deprecated because these functions cause errors in gpu
+            elif isinstance(op.gate, ops.three_qubit_gates.CCXPowGate):
+                mat = _get_google_rotx(op.gate._exponent)
+                gate = qulacs.gate.DenseMatrix(indices[2], mat)
+                gate.add_control_qubit(indices[0],1)
+                gate.add_control_qubit(indices[1],1)
+                qulacs_circuit.add_gate(gate)
+            elif isinstance(op.gate, ops.three_qubit_gates.CCZPowGate):
+                mat = _get_google_rotz(op.gate._exponent)
+                gate = qulacs.gate.DenseMatrix(indices[2], mat)
+                gate.add_control_qubit(indices[0],1)
+                gate.add_control_qubit(indices[1],1)
+                qulacs_circuit.add_gate(gate)
+            """
         elif isinstance(op.gate, ops.three_qubit_gates.CSwapGate):
             mat = np.zeros(shape=(4,4))
             mat[0,0] = 1; mat[1,2] = 1; mat[2,1] = 1; mat[3,3] = 1

@@ -43,43 +43,40 @@ def parse_qasm_to_CirqCircuit(input_filename, cirq_circuit, cirq_qubits):
                cirq_circuit.append(cirq.circuits.qasm_output.QasmUGate(float(m_r[0]), 0, 0).on(cirq_qubits[int(m_i[0].strip('[]'))]))
                continue
 
+def bench(func, arg, mintime = 1.0):
+    st = time.time()
+    rep = 0
+    while (time.time()-st) < mintime:
+        func(arg)
+        rep += 1
+    elp = (time.time()-st)/rep
+    return elp
 
-def main():
-
+def bench_sweep(SimulatorClass, bench_name, folder_path = "./result/"):
     dtype = np.complex128
-    folder_path = "./result"
     if not os.path.exists(folder_path):
         os.mkdir(folder_path)
+    fname = "_".join( ["benchmark", "density_matrix", bench_name] ) +".csv"
+    fout = open(folder_path+fname, 'w')
+    fout.write('n_qubits,n_iter,elapsed_time\n')
+    fout.close()
+    for niter in range(10):
+        for nqubits in range(5, 12+1):
+            qubits = [cirq.LineQubit(i) for i in range(nqubits)]
+            circuit = cirq.Circuit()
+            parse_qasm_to_CirqCircuit('quantum_volume/quantum_volume_n{}_d8_0_{}.qasm'.format(nqubits, niter) ,circuit, qubits)
 
-    with open(folder_path+'/benchmark_density_matrix_qulacs_cpu.csv', 'w') as f:
-        with open(folder_path+'/benchmark_density_matrix_cirq_cpu.csv', 'w') as h:
-            f.write('n_qubits,n_iter,elapsed_time\n')
-            h.write('n_qubits,n_iter,elapsed_time\n')
-            for niter in range(10):
-                for nqubits in range(5,12+1):
-                    qubits = [cirq.LineQubit(i) for i in range(nqubits)]
-                    circuit = cirq.Circuit()
-                    parse_qasm_to_CirqCircuit('quantum_volume/quantum_volume_n{}_d8_0_{}.qasm'.format(nqubits, niter) ,circuit, qubits)
+            sim = SimulatorClass(dtype=dtype)
+            elapsed_time = bench(sim.simulate, circuit)
 
-                    sim = QulacsDensityMatrixSimulator(dtype=dtype)
-                    start = time.time()
-                    _ = sim.simulate(circuit)
-                    elapsed_time = time.time() - start
-                    f.write('{},{},{}\n'.format(nqubits, niter, elapsed_time))
-                    print('cpu  {},{},{}'.format(nqubits, niter, elapsed_time))
-                    
-                    del sim 
+            fout = open(folder_path+fname, 'a')
+            fout.write('{},{},{}\n'.format(nqubits, niter, elapsed_time))
+            fout.close()
+            print(bench_name + '{},{},{}'.format(niter, nqubits, elapsed_time))
 
-                    sim = cirq.DensityMatrixSimulator(dtype=dtype)
-                    start = time.time()
-                    _ = sim.simulate(circuit)
-                    elapsed_time = time.time() - start
-                    h.write('{},{},{}\n'.format(nqubits, niter, elapsed_time))
-                    print('cirq {},{},{}'.format(nqubits, niter, elapsed_time))
-
-                    del sim 
-
-
+def main():
+    bench_sweep(QulacsDensityMatrixSimulator, "qulacs_cpu")
+    #bench_sweep(cirq.DensityMatrixSimulator, "cirq_cpu")
 
 if __name__ == '__main__':
    main()
