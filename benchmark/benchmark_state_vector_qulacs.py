@@ -43,45 +43,40 @@ def parse_qasm_to_QulacsCircuit(input_filename, qulacs_circuit):
                qulacs_circuit.add_U1_gate(t_qbit, float(m_r[0]))
                continue
 
+def bench(state, circuit, mintime = 1.0):
+    st = time.time()
+    rep = 0
+    while (time.time()-st) < mintime:
+        circuit.update_quantum_state(state)
+        rep += 1
+    elp = (time.time()-st)/rep
+    return elp
 
-def main():
-
-    folder_path = "./result_qulacs"
+def bench_sweep(QuantumStateClass, bench_name, folder_path = "./result/"):
     if not os.path.exists(folder_path):
         os.mkdir(folder_path)
+    fname = "_".join( ["benchmark", "state_vector", bench_name] ) +".csv"
+    fout = open(folder_path+fname, 'w')
+    fout.write('n_qubits,n_iter,elapsed_time\n')
+    fout.close()
+    for niter in range(10):
+        for nqubits in range(5, 25+1):
+            circuit = QuantumCircuit(nqubits)
+            state = QuantumStateClass(nqubits)
+            parse_qasm_to_QulacsCircuit('quantum_volume/quantum_volume_n{}_d8_0_{}.qasm'.format(nqubits, niter) ,circuit)
 
-    with open(folder_path+'/benchmark_state_vector_qulacs_cpu.csv', 'w') as f:
-        with open(folder_path+'/benchmark_state_vector_qulacs_gpu.csv', 'w') as g:
-            f.write('n_qubits,n_iter,elapsed_time\n')
-            g.write('n_qubits,n_iter,elapsed_time\n')
-            for niter in range(10):
-                for nqubits in range(5, 25+1):
-                    circuit = QuantumCircuit(nqubits)
-                    parse_qasm_to_QulacsCircuit('quantum_volume/quantum_volume_n{}_d8_0_{}.qasm'.format(nqubits, niter) ,circuit)
+            elapsed_time = bench(state, circuit)
 
-                    state = QuantumState(nqubits)
-                    start = time.time()
-                    rep = 0
-                    while time.time()-start < 1.0:
-                        circuit.update_quantum_state(state)
-                        rep+=1
-                    elapsed_time = (time.time() - start)/rep
-                    f.write('{},{},{}\n'.format(nqubits, niter, elapsed_time))
-                    print('cpu  {},{},{}'.format(nqubits, niter, elapsed_time))
-                    
-                    del state
+            fout = open(folder_path+fname, 'a')
+            fout.write('{},{},{}\n'.format(nqubits, niter, elapsed_time))
+            fout.close()
+            print(bench_name + '{},{},{}'.format(niter, nqubits, elapsed_time))
+            del state
 
-                    state = QuantumStateGpu(nqubits)
-                    start = time.time()
-                    rep = 0
-                    while time.time()-start < 1.0:
-                        circuit.update_quantum_state(state)
-                        rep+=1
-                    elapsed_time = (time.time() - start)/rep
-                    g.write('{},{},{}\n'.format(nqubits, niter, elapsed_time))
-                    print('gpu  {},{},{}'.format(nqubits, niter, elapsed_time))
 
-                    del state
+def main():
+    bench_sweep(QuantumState, "qulacs_cpu", "./result_qulacs/")
+    bench_sweep(QuantumStateGpu, "qulacs_gpu", "./result_qulacs/")
 
 if __name__ == '__main__':
    main()

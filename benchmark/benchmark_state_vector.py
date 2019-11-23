@@ -43,54 +43,41 @@ def parse_qasm_to_CirqCircuit(input_filename, cirq_circuit, cirq_qubits):
                cirq_circuit.append(cirq.circuits.qasm_output.QasmUGate(float(m_r[0]), 0, 0).on(cirq_qubits[int(m_i[0].strip('[]'))]))
                continue
 
+def bench(func, arg, mintime = 1.0):
+    st = time.time()
+    rep = 0
+    while (time.time()-st) < mintime:
+        func(arg)
+        rep += 1
+    elp = (time.time()-st)/rep
+    return elp
 
-def main():
-
+def bench_sweep(SimulatorClass, bench_name, folder_path = "./result/"):
     dtype = np.complex128
-    folder_path = "./result"
     if not os.path.exists(folder_path):
         os.mkdir(folder_path)
+    fname = "_".join( ["benchmark", "state_vector", bench_name] ) +".csv"
+    fout = open(folder_path+fname, 'w')
+    fout.write('n_qubits,n_iter,elapsed_time\n')
+    fout.close()
+    for niter in range(10):
+        for nqubits in range(5, 25+1):
+            qubits = [cirq.LineQubit(i) for i in range(nqubits)]
+            circuit = cirq.Circuit()
+            parse_qasm_to_CirqCircuit('quantum_volume/quantum_volume_n{}_d8_0_{}.qasm'.format(nqubits, niter) ,circuit, qubits)
 
-    with open(folder_path+'/benchmark_state_vector_qulacs_cpu.csv', 'w') as f:
-        with open(folder_path+'/benchmark_state_vector_qulacs_gpu.csv', 'w') as g:
-            with open(folder_path+'/benchmark_state_vector_cirq_cpu.csv', 'w') as h:
-                f.write('n_qubits,n_iter,elapsed_time\n')
-                g.write('n_qubits,n_iter,elapsed_time\n')
-                h.write('n_qubits,n_iter,elapsed_time\n')
-                for niter in range(10):
-                    for nqubits in range(5, 25+1):
-                        qubits = [cirq.LineQubit(i) for i in range(nqubits)]
-                        circuit = cirq.Circuit()
-                        parse_qasm_to_CirqCircuit('quantum_volume/quantum_volume_n{}_d8_0_{}.qasm'.format(nqubits, niter) ,circuit, qubits)
+            sim = SimulatorClass(dtype=dtype)
+            elapsed_time = bench(sim.simulate, circuit)
 
-                        sim = QulacsSimulator(dtype=dtype)
-                        start = time.time()
-                        qulacs_result = sim.simulate(circuit)
-                        elapsed_time = time.time() - start
-                        f.write('{},{},{}\n'.format(nqubits, niter, elapsed_time))
-                        print('cpu  {},{},{}'.format(nqubits, niter, elapsed_time))
-                        
-                        del sim 
+            fout = open(folder_path+fname, 'a')
+            fout.write('{},{},{}\n'.format(nqubits, niter, elapsed_time))
+            fout.close()
+            print(bench_name + '{},{},{}'.format(niter, nqubits, elapsed_time))
 
-                        sim = QulacsSimulatorGpu(dtype=dtype)
-                        start = time.time()
-                        qulacs_result = sim.simulate(circuit)
-                        elapsed_time = time.time() - start
-                        g.write('{},{},{}\n'.format(nqubits, niter, elapsed_time))
-                        print('gpu  {},{},{}'.format(nqubits, niter, elapsed_time))
-
-                        del sim 
-
-                        sim = cirq.Simulator(dtype=dtype)
-                        start = time.time()
-                        qulacs_result = sim.simulate(circuit)
-                        elapsed_time = time.time() - start
-                        h.write('{},{},{}\n'.format(nqubits, niter, elapsed_time))
-                        print('cirq {},{},{}'.format(nqubits, niter, elapsed_time))
-
-                        del sim 
-
-
+def main():
+    bench_sweep(QulacsSimulator, "qulacs_cpu")
+    bench_sweep(QulacsSimulatorGpu, "qulacs_gpu")
+    #bench_sweep(cirq.Simulator, "cirq_cpu")
 
 if __name__ == '__main__':
    main()
