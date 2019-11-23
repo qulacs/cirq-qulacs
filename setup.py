@@ -8,7 +8,7 @@ with open('LICENSE') as f:
 
 setup(
     name='cirqqulacs',
-    version='0.0.1',
+    version='0.0.2',
     author='QunaSys',
     author_email='qulacs@qunasys.com',
     url='http://www.qulacs.org',
