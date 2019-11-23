@@ -70,42 +70,21 @@ class QulacsSimulator(SimulatesFinalState):
                 del cirq_state
 
             # create circuit
-
-            ## function called when circuit contains not tractable operations
-            def on_stuck(bad_op: ops.Operation):
-                return TypeError(
-                    "Can't simulate unknown operations that don't specify a "
-                    "_unitary_ method, a _decompose_ method, "
-                    "(_has_unitary_ + _apply_unitary_) methods,"
-                    "(_has_mixture_ + _mixture_) methods, or are measurements."
-                    ": {!r}".format(bad_op))
-
-            ## return True if operation is tractable with qulacs
-            def keep(potential_op: ops.Operation) -> bool:
-                return (protocols.has_unitary(potential_op) or
-                        protocols.has_mixture(potential_op) or
-                        protocols.is_measurement(potential_op) or
-                        isinstance(potential_op.gate, ops.ResetChannel))
-
             qulacs_circuit = qulacs.QuantumCircuit(num_qubits)
             address_to_key = {}
             register_address = 0
             for moment in cirq_circuit:
-                operations = protocols.decompose(
-                    moment, keep=keep, on_stuck_raise=on_stuck)
-
+                operations = moment.operations
                 for op in operations:
-                    # In qulacs, the lowest bit is right, though it is left in cirq.
-                    # we need to invert indices
                     indices = [num_qubits - 1 - qubit_map[qubit] for qubit in op.qubits]
+                    result = self._try_append_gate(op, qulacs_circuit, indices)
+                    if result:
+                        continue
 
                     if isinstance(op.gate, ops.ResetChannel):
                         qulacs_circuit.update_quantum_state(qulacs_state)
                         qulacs_state.set_zero_state()
                         qulacs_circuit = qulacs.QuantumCircuit(num_qubits)
-
-                    elif protocols.has_unitary(op):
-                        self._append_gate(op, qulacs_circuit, indices)
 
                     elif protocols.is_measurement(op):
                         for index in indices:
@@ -150,7 +129,7 @@ class QulacsSimulator(SimulatesFinalState):
 
         return trial_results
 
-    def _append_gate(self, op : ops.GateOperation, qulacs_circuit : qulacs.QuantumCircuit, indices : np.array):
+    def _try_append_gate(self, op : ops.GateOperation, qulacs_circuit : qulacs.QuantumCircuit, indices : np.array):
         # One qubit gate
         if isinstance(op.gate, ops.pauli_gates._PauliX):
             qulacs_circuit.add_X_gate(indices[0])
@@ -166,6 +145,15 @@ class QulacsSimulator(SimulatesFinalState):
             qulacs_circuit.add_RY_gate(indices[0], -np.pi*op.gate._exponent)
         elif isinstance(op.gate, ops.common_gates.ZPowGate):
             qulacs_circuit.add_RZ_gate(indices[0], -np.pi*op.gate._exponent)
+        elif isinstance(op.gate, ops.SingleQubitMatrixGate):
+            mat = op.gate._matrix
+            qulacs_circuit.add_dense_matrix_gate(indices[0], mat)
+        elif isinstance(op.gate, circuits.qasm_output.QasmUGate):
+            lmda = op.gate.lmda
+            theta = op.gate.theta
+            phi = op.gate.phi
+            gate = qulacs.gate.U3(indices[0], theta*np.pi, phi*np.pi, lmda*np.pi)
+            qulacs_circuit.add_gate(gate)
 
         # Two qubit gate
         elif isinstance(op.gate, ops.common_gates.CNotPowGate):
@@ -195,6 +183,10 @@ class QulacsSimulator(SimulatesFinalState):
             qulacs_circuit.add_multi_Pauli_rotation_gate(indices, [2,2], -np.pi*op.gate._exponent)
         elif isinstance(op.gate, ops.parity_gates.ZZPowGate):
             qulacs_circuit.add_multi_Pauli_rotation_gate(indices, [3,3], -np.pi*op.gate._exponent)
+        elif isinstance(op.gate, ops.TwoQubitMatrixGate):
+            indices.reverse()
+            mat = op.gate._matrix
+            qulacs_circuit.add_dense_matrix_gate(indices, mat)
 
         # Three qubit gate
         elif isinstance(op.gate, ops.three_qubit_gates.CCXPowGate):
@@ -217,9 +209,16 @@ class QulacsSimulator(SimulatesFinalState):
             qulacs_circuit.add_gate(gate)
 
         # Misc
-        else:
+        elif protocols.has_unitary(op):
             indices.reverse()
-            qulacs_circuit.add_dense_matrix_gate(indices,op._unitary_())
+            mat = op._unitary_()
+            qulacs_circuit.add_dense_matrix_gate(indices,mat)
+
+        # Not unitary
+        else:
+            return False
+
+        return True
 
 
 class QulacsSimulatorGpu(QulacsSimulator):
