@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 import cirq
-from cirqqulacs import QulacsDensityMatrixSimulator
+from cirqqulacs import QulacsSimulator, QulacsSimulatorGpu
 
 
 def parse_qasm_to_CirqCircuit(input_filename, cirq_circuit, cirq_qubits):
@@ -56,12 +56,12 @@ def bench_sweep(SimulatorClass, bench_name, folder_path = "./result/"):
     dtype = np.complex128
     if not os.path.exists(folder_path):
         os.mkdir(folder_path)
-    fname = "_".join( ["benchmark", "density_matrix", bench_name] ) +".csv"
+    fname = "_".join( ["benchmark", "state_vector", bench_name] ) +".csv"
     fout = open(folder_path+fname, 'w')
     fout.write('n_qubits,n_iter,elapsed_time\n')
     fout.close()
     for niter in range(10):
-        for nqubits in range(5, 12+1):
+        for nqubits in range(5, 25+1):
             qubits = [cirq.LineQubit(i) for i in range(nqubits)]
             circuit = cirq.Circuit()
             parse_qasm_to_CirqCircuit('quantum_volume/quantum_volume_n{}_d8_0_{}.qasm'.format(nqubits, niter) ,circuit, qubits)
@@ -75,8 +75,9 @@ def bench_sweep(SimulatorClass, bench_name, folder_path = "./result/"):
             print(bench_name + '{},{},{}'.format(niter, nqubits, elapsed_time))
 
 def main():
-    bench_sweep(QulacsDensityMatrixSimulator, "qulacs_cpu")
-    #bench_sweep(cirq.DensityMatrixSimulator, "cirq_cpu")
+    bench_sweep(QulacsSimulator, "qulacs_cpu")
+    bench_sweep(QulacsSimulatorGpu, "qulacs_gpu")
+    #bench_sweep(cirq.Simulator, "cirq_cpu")
 
 if __name__ == '__main__':
    main()

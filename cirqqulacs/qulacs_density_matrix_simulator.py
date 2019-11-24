@@ -26,18 +26,6 @@ class QulacsDensityMatrixSimulator(DensityMatrixSimulator):
         if len(circuit) == 0:
             yield DensityMatrixStepResult(matrix, {}, qubit_map, dtype = self._dtype)
 
-        def on_stuck(bad_op: ops.Operation):
-            return TypeError(
-                "Can't simulate operations that don't implement "
-                "SupportsUnitary, SupportsConsistentApplyUnitary, "
-                "SupportsMixture, SupportsChannel or is a measurement: {!r}".
-                format(bad_op))
-
-        def keep(potential_op: ops.Operation) -> bool:
-            return (protocols.has_channel(potential_op) or
-                    isinstance(potential_op.gate, ops.MeasurementGate))
-
-
         matrix = np.reshape(matrix, (2**num_qubits, 2**num_qubits))
         noisy_moments = self.noise.noisy_moments(circuit,
                                                 sorted(circuit.all_qubits()))
@@ -47,23 +35,17 @@ class QulacsDensityMatrixSimulator(DensityMatrixSimulator):
 
         for moment in noisy_moments:
             measurements = collections.defaultdict(
-                list)  # type: Dict[str, List[int]]
-
-            channel_ops_and_measurements = protocols.decompose(
-                moment, keep=keep, on_stuck_raise=on_stuck)
-
-            for op in channel_ops_and_measurements:
-                #indices = [qubit_map[qubit] for qubit in op.qubits]
+                list)  # type: Dict[str, List[bool]]
+            operations = moment.operations
+            for op in operations:
                 indices = [num_qubits - 1 - qubit_map[qubit] for qubit in op.qubits]
                 indices.reverse()
 
-                meas = isinstance(op.gate, ops.MeasurementGate)
-                if meas:
+                if isinstance(op, ops.MeasurementGate):
                     # Not implemented
                     raise NotImplementedError("Measurement is not supported in qulacs simulator")
 
                 else:
-                    # TODO: Use apply_channel similar to apply_unitary.
                     gate = cast(ops.GateOperation, op).gate
                     channel = protocols.channel(gate)
 
