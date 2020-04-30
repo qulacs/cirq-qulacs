@@ -35,17 +35,20 @@ def parse_qasm_to_QulacsCircuit(input_filename,cirq_circuit,cirq_qubits):
             elif s.group() == 'u3':
                 m_r = re.findall(r'[-]?\d\.\d\d*', line)
                 m_i = re.findall(r'\[\d\d*\]', line)
- 
-                cirq_circuit.append(cirq.circuits.qasm_output.QasmUGate(float(m_r[0]),float(m_r[1]),float(m_r[2])).on(cirq_qubits[int(m_i[0].strip('[]'))]))
- 
+                #cirq_circuit.append(cirq.circuits.qasm_output.QasmUGate(float(m_r[0]),float(m_r[1]),float(m_r[2])).on(cirq_qubits[int(m_i[0].strip('[]'))]))
+                target_index = int(m_i[0].strip('[]'))
+                cirq_circuit.append(cirq.rz(float(m_r[0])).on(cirq_qubits[target_index]))
+                cirq_circuit.append(cirq.ry(float(m_r[1])).on(cirq_qubits[target_index]))
+                cirq_circuit.append(cirq.rz(float(m_r[2])).on(cirq_qubits[target_index]))
                 continue
  
             elif s.group() == 'u1':
                 m_r = re.findall(r'[-]?\d\.\d\d*', line)
                 m_i = re.findall(r'\[\d\d*\]', line)
  
-                cirq_circuit.append(cirq.circuits.qasm_output.QasmUGate(float(m_r[0]), 0, 0).on(cirq_qubits[int(m_i[0].strip('[]'))]))
- 
+                #cirq_circuit.append(cirq.circuits.qasm_output.QasmUGate(float(m_r[0]), 0, 0).on(cirq_qubits[int(m_i[0].strip('[]'))]))
+                target_index = int(m_i[0].strip('[]'))
+                cirq_circuit.append(cirq.rz(float(m_r[0])).on(cirq_qubits[target_index]))
                 continue
 
 
@@ -170,13 +173,13 @@ class TestQulacsSimulator(unittest.TestCase):
         self.check_single_qubit_gate(cirq.ops.T)
 
     def test_QulacsSimulator_RXgate(self):
-        self.check_single_qubit_rotation_gate(cirq.ops.Rx)
+        self.check_single_qubit_rotation_gate(cirq.rx)
 
     def test_QulacsSimulator_RYgate(self):
-        self.check_single_qubit_rotation_gate(cirq.ops.Ry)
+        self.check_single_qubit_rotation_gate(cirq.ry)
 
     def test_QulacsSimulator_RZgate(self):
-        self.check_single_qubit_rotation_gate(cirq.ops.Rz)
+        self.check_single_qubit_rotation_gate(cirq.rz)
 
     def test_QulacsSimulator_CNOTgate(self):
         self.check_two_qubit_gate(cirq.ops.CNOT)
@@ -256,7 +259,7 @@ class TestQulacsSimulator(unittest.TestCase):
                 circuit.append(cirq.circuits.qasm_output.QasmUGate(angle[0], angle[1], angle[2]).on(qubits[index]))
             index = np.random.randint(self.qubit_n)
             mat = unitary_group.rvs(2)
-            circuit.append(cirq.SingleQubitMatrixGate(mat).on(qubits[index]))
+            circuit.append(cirq.MatrixGate(mat).on(qubits[index]))
             self.check_result(circuit)
 
     def test_QulacsSimulator_TwoQubitMatrixGate(self):
@@ -267,7 +270,7 @@ class TestQulacsSimulator(unittest.TestCase):
             np.random.shuffle(all_indices)
             index = all_indices[:2]
             mat = unitary_group.rvs(4)
-            circuit.append(cirq.TwoQubitMatrixGate(mat).on(qubits[index[0]], qubits[index[1]]))
+            circuit.append(cirq.MatrixGate(mat).on(qubits[index[0]], qubits[index[1]]))
             self.check_result(circuit)
 
     def test_QulacsSimulator_QuantumVolume(self):

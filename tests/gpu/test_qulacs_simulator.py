@@ -171,13 +171,13 @@ class TestQulacsSimulator(unittest.TestCase):
         self.check_single_qubit_gate(cirq.ops.T)
 
     def test_QulacsSimulator_RXgate(self):
-        self.check_single_qubit_rotation_gate(cirq.ops.Rx)
+        self.check_single_qubit_rotation_gate(cirq.rx)
 
     def test_QulacsSimulator_RYgate(self):
-        self.check_single_qubit_rotation_gate(cirq.ops.Ry)
+        self.check_single_qubit_rotation_gate(cirq.ry)
 
     def test_QulacsSimulator_RZgate(self):
-        self.check_single_qubit_rotation_gate(cirq.ops.Rz)
+        self.check_single_qubit_rotation_gate(cirq.rz)
 
     def test_QulacsSimulator_CNOTgate(self):
         self.check_two_qubit_gate(cirq.ops.CNOT)
@@ -257,7 +257,7 @@ class TestQulacsSimulator(unittest.TestCase):
                 circuit.append(cirq.circuits.qasm_output.QasmUGate(angle[0], angle[1], angle[2]).on(qubits[index]))
             index = np.random.randint(self.qubit_n)
             mat = unitary_group.rvs(2)
-            circuit.append(cirq.SingleQubitMatrixGate(mat).on(qubits[index]))
+            circuit.append(cirq.MatrixGate(mat).on(qubits[index]))
             self.check_result(circuit)
 
     def test_QulacsSimulator_TwoQubitMatrixGate(self):
@@ -268,7 +268,7 @@ class TestQulacsSimulator(unittest.TestCase):
             np.random.shuffle(all_indices)
             index = all_indices[:2]
             mat = unitary_group.rvs(4)
-            circuit.append(cirq.TwoQubitMatrixGate(mat).on(qubits[index[0]], qubits[index[1]]))
+            circuit.append(cirq.MatrixGate(mat).on(qubits[index[0]], qubits[index[1]]))
             self.check_result(circuit)
 
     def test_QulacsSimulator_QuantumVolume(self):
