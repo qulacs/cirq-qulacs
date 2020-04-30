@@ -56,13 +56,13 @@ class TestQulacsDensityMatrixSimulator(unittest.TestCase):
             self.check_result(circuit)
 
     def test_QulacsDensityMatrixSimulator_RXgate(self):
-        self.check_single_qubit_rotation_gate(cirq.ops.Rx)
+        self.check_single_qubit_rotation_gate(cirq.rx)
 
     def test_QulacsDensityMatrixSimulator_RYgate(self):
-        self.check_single_qubit_rotation_gate(cirq.ops.Ry)
+        self.check_single_qubit_rotation_gate(cirq.ry)
 
     def test_QulacsDensityMatrixSimulator_RZgate(self):
-        self.check_single_qubit_rotation_gate(cirq.ops.Rz)
+        self.check_single_qubit_rotation_gate(cirq.rz)
 
     def test_QulacsDensityMatrixSimulator_Ugate(self):
         qubits = [cirq.LineQubit(i) for i in range(self.qubit_n)]
@@ -70,7 +70,10 @@ class TestQulacsDensityMatrixSimulator(unittest.TestCase):
         for _ in range(self.test_repeat):
             index = np.random.randint(self.qubit_n)
             angle = np.random.rand(3)*np.pi*2
-            circuit.append(cirq.circuits.qasm_output.QasmUGate(angle[0], angle[1], angle[2]).on(qubits[index]))
+            #circuit.append(cirq.circuits.qasm_output.QasmUGate(angle[0], angle[1], angle[2]).on(qubits[index]))
+            circuit.append(cirq.rz(angle[0]).on(qubits[index]))
+            circuit.append(cirq.ry(angle[1]).on(qubits[index]))
+            circuit.append(cirq.rz(angle[2]).on(qubits[index]))
             self.check_result(circuit)
        
     def check_two_qubit_gate(self, gate_op):
@@ -80,7 +83,10 @@ class TestQulacsDensityMatrixSimulator(unittest.TestCase):
         for _ in range(self.test_repeat):
             for index in range(self.qubit_n):
                 angle = np.random.rand(3)*np.pi*2
-                circuit.append(cirq.circuits.qasm_output.QasmUGate(angle[0], angle[1], angle[2]).on(qubits[index]))
+                #circuit.append(cirq.circuits.qasm_output.QasmUGate(angle[0], angle[1], angle[2]).on(qubits[index]))
+                circuit.append(cirq.rz(angle[0]).on(qubits[index]))
+                circuit.append(cirq.ry(angle[1]).on(qubits[index]))
+                circuit.append(cirq.rz(angle[2]).on(qubits[index]))
             np.random.shuffle(all_indices)
             index = all_indices[:2]
             circuit.append(gate_op(qubits[index[0]],qubits[index[1]]))
@@ -111,7 +117,10 @@ class TestQulacsDensityMatrixSimulator(unittest.TestCase):
         for _ in range(self.test_repeat):
             for index in range(self.qubit_n):
                 angle = np.random.rand(3)*np.pi*2
-                circuit.append(cirq.circuits.qasm_output.QasmUGate(angle[0], angle[1], angle[2]).on(qubits[index]))
+                #circuit.append(cirq.circuits.qasm_output.QasmUGate(angle[0], angle[1], angle[2]).on(qubits[index]))
+                circuit.append(cirq.rz(angle[0]).on(qubits[index]))
+                circuit.append(cirq.ry(angle[1]).on(qubits[index]))
+                circuit.append(cirq.rz(angle[2]).on(qubits[index]))
             np.random.shuffle(all_indices)
             index = all_indices[:3]
             circuit.append(gate_op(qubits[index[0]],qubits[index[1]],qubits[index[2]]))

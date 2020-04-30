@@ -3,7 +3,7 @@ from typing import Dict, Iterator, List, Union, Any, Type, cast
 import numpy as np
 import collections
 import qulacs
-from cirq import circuits, ops, protocols, schedules, study, value
+from cirq import circuits, ops, protocols, study, value
 from cirq.sim import SimulatesFinalState, SimulationTrialResult, wave_function
 
 def _get_google_rotx(exponent : float) -> np.ndarray:
@@ -31,15 +31,18 @@ class QulacsSimulator(SimulatesFinalState):
         return qulacs.QuantumState(num_qubits)
 
     def simulate_sweep(
-        self,
-        program: Union[circuits.Circuit, schedules.Schedule],
-        params: study.Sweepable,
-        qubit_order: ops.QubitOrderOrList = ops.QubitOrder.DEFAULT,
-        initial_state: Any = None,
+            self,
+            program: 'cirq.Circuit',
+            params: study.Sweepable,
+            qubit_order: ops.QubitOrderOrList = ops.QubitOrder.DEFAULT,
+            initial_state: Any = None,
     ) -> List['SimulationTrialResult']:
-        """Simulates the supplied Circuit or Schedule with Qulacs
+        """Simulates the supplied Circuit.
+        This method returns a result which allows access to the entire
+        wave function. In contrast to simulate, this allows for sweeping
+        over different parameter values.
         Args:
-            program: The circuit or schedule to simulate.
+            program: The circuit to simulate.
             params: Parameters to run with the program.
             qubit_order: Determines the canonical ordering of the qubits. This
                 is often used in specifying the initial state, i.e. the
@@ -50,7 +53,7 @@ class QulacsSimulator(SimulatesFinalState):
         Returns:
             List of SimulationTrialResults for this run, one for each
             possible parameter resolver.
-        """        
+        """     
         trial_results = []
         # sweep for each parameters
         resolvers = study.to_resolvers(params)
@@ -189,21 +192,18 @@ class QulacsSimulator(SimulatesFinalState):
             qulacs_circuit.add_dense_matrix_gate(indices, mat)
 
         # Three qubit gate
-            """
-            # deprecated because these functions cause errors in gpu
-            elif isinstance(op.gate, ops.three_qubit_gates.CCXPowGate):
-                mat = _get_google_rotx(op.gate._exponent)
-                gate = qulacs.gate.DenseMatrix(indices[2], mat)
-                gate.add_control_qubit(indices[0],1)
-                gate.add_control_qubit(indices[1],1)
-                qulacs_circuit.add_gate(gate)
-            elif isinstance(op.gate, ops.three_qubit_gates.CCZPowGate):
-                mat = _get_google_rotz(op.gate._exponent)
-                gate = qulacs.gate.DenseMatrix(indices[2], mat)
-                gate.add_control_qubit(indices[0],1)
-                gate.add_control_qubit(indices[1],1)
-                qulacs_circuit.add_gate(gate)
-            """
+        elif isinstance(op.gate, ops.three_qubit_gates.CCXPowGate):
+            mat = _get_google_rotx(op.gate._exponent)
+            gate = qulacs.gate.DenseMatrix(indices[2], mat)
+            gate.add_control_qubit(indices[0],1)
+            gate.add_control_qubit(indices[1],1)
+            qulacs_circuit.add_gate(gate)
+        elif isinstance(op.gate, ops.three_qubit_gates.CCZPowGate):
+            mat = _get_google_rotz(op.gate._exponent)
+            gate = qulacs.gate.DenseMatrix(indices[2], mat)
+            gate.add_control_qubit(indices[0],1)
+            gate.add_control_qubit(indices[1],1)
+            qulacs_circuit.add_gate(gate)
         elif isinstance(op.gate, ops.three_qubit_gates.CSwapGate):
             mat = np.zeros(shape=(4,4))
             mat[0,0] = 1; mat[1,2] = 1; mat[2,1] = 1; mat[3,3] = 1
