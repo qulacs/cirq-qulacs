@@ -3,27 +3,30 @@ from typing import Dict, Iterator, List, Union, Any, Type, cast
 import numpy as np
 import collections
 import qulacs
-from cirq import circuits, ops, protocols, study, value
-from cirq.sim import SimulatesFinalState, SimulationTrialResult, wave_function
+from cirq import circuits, ops, protocols, study, value, RANDOM_STATE_OR_SEED_LIKE
+from cirq.sim import SimulatesFinalState, SimulationTrialResult, state_vector
 
-def _get_google_rotx(exponent : float) -> np.ndarray:
+
+def _get_google_rotx(exponent: float) -> np.ndarray:
     rot = exponent
-    g = np.exp(1.j*np.pi*rot/2)
-    c = np.cos(np.pi*rot/2)
-    s = np.sin(np.pi*rot/2)
+    g = np.exp(1.j * np.pi * rot / 2)
+    c = np.cos(np.pi * rot / 2)
+    s = np.sin(np.pi * rot / 2)
     mat = np.array([
-        [g*c, -1.j*g*s],
-        [-1.j*g*s, g*c]
+        [g * c, -1.j * g * s],
+        [-1.j * g * s, g * c]
     ])
     return mat
 
-def _get_google_rotz(exponent : float) -> np.ndarray:
-    return np.diag([1., np.exp(1.j*np.pi*exponent)])
+
+def _get_google_rotz(exponent: float) -> np.ndarray:
+    return np.diag([1., np.exp(1.j * np.pi * exponent)])
+
 
 class QulacsSimulator(SimulatesFinalState):
-    def __init__(self, *, 
-            dtype: Type[np.number] = np.complex128, 
-            seed: value.RANDOM_STATE_LIKE = None):
+    def __init__(self, *,
+                 dtype: Type[np.number] = np.complex128,
+                 seed: RANDOM_STATE_OR_SEED_LIKE = None):
         self._dtype = dtype
         self._prng = value.parse_random_state(seed)
 
@@ -53,7 +56,7 @@ class QulacsSimulator(SimulatesFinalState):
         Returns:
             List of SimulationTrialResults for this run, one for each
             possible parameter resolver.
-        """     
+        """
         trial_results = []
         # sweep for each parameters
         resolvers = study.to_resolvers(params)
@@ -68,7 +71,7 @@ class QulacsSimulator(SimulatesFinalState):
             # create state
             qulacs_state = self._get_qulacs_state(num_qubits)
             if initial_state is not None:
-                cirq_state = wave_function.to_valid_state_vector(initial_state,num_qubits)
+                cirq_state = state_vector.to_valid_state_vector(initial_state, num_qubits)
                 qulacs_state.load(cirq_state)
                 del cirq_state
 
@@ -120,9 +123,9 @@ class QulacsSimulator(SimulatesFinalState):
 
             # create result for this parameter
             result = SimulationTrialResult(
-                params = resolver,
-                measurements = measurements,
-                final_simulator_state = final_state
+                params=resolver,
+                measurements=measurements,
+                final_simulator_state=final_state
             )
             trial_results.append(result)
 
@@ -132,7 +135,7 @@ class QulacsSimulator(SimulatesFinalState):
 
         return trial_results
 
-    def _try_append_gate(self, op : ops.GateOperation, qulacs_circuit : qulacs.QuantumCircuit, indices : np.array):
+    def _try_append_gate(self, op: ops.GateOperation, qulacs_circuit: qulacs.QuantumCircuit, indices: np.array):
         # One qubit gate
         if isinstance(op.gate, ops.pauli_gates._PauliX):
             qulacs_circuit.add_X_gate(indices[0])
@@ -143,19 +146,19 @@ class QulacsSimulator(SimulatesFinalState):
         elif isinstance(op.gate, ops.common_gates.HPowGate):
             qulacs_circuit.add_H_gate(indices[0])
         elif isinstance(op.gate, ops.common_gates.XPowGate):
-            qulacs_circuit.add_RX_gate(indices[0], -np.pi*op.gate._exponent)
+            qulacs_circuit.add_RX_gate(indices[0], -np.pi * op.gate._exponent)
         elif isinstance(op.gate, ops.common_gates.YPowGate):
-            qulacs_circuit.add_RY_gate(indices[0], -np.pi*op.gate._exponent)
+            qulacs_circuit.add_RY_gate(indices[0], -np.pi * op.gate._exponent)
         elif isinstance(op.gate, ops.common_gates.ZPowGate):
-            qulacs_circuit.add_RZ_gate(indices[0], -np.pi*op.gate._exponent)
-        elif isinstance(op.gate, ops.SingleQubitMatrixGate):
+            qulacs_circuit.add_RZ_gate(indices[0], -np.pi * op.gate._exponent)
+        elif (len(indices) == 1 and isinstance(op.gate, ops.matrix_gates.MatrixGate)):
             mat = op.gate._matrix
             qulacs_circuit.add_dense_matrix_gate(indices[0], mat)
         elif isinstance(op.gate, circuits.qasm_output.QasmUGate):
             lmda = op.gate.lmda
             theta = op.gate.theta
             phi = op.gate.phi
-            gate = qulacs.gate.U3(indices[0], theta*np.pi, phi*np.pi, lmda*np.pi)
+            gate = qulacs.gate.U3(indices[0], theta * np.pi, phi * np.pi, lmda * np.pi)
             qulacs_circuit.add_gate(gate)
 
         # Two qubit gate
@@ -165,7 +168,7 @@ class QulacsSimulator(SimulatesFinalState):
             else:
                 mat = _get_google_rotx(op.gate._exponent)
                 gate = qulacs.gate.DenseMatrix(indices[1], mat)
-                gate.add_control_qubit(indices[0],1)
+                gate.add_control_qubit(indices[0], 1)
                 qulacs_circuit.add_gate(gate)
         elif isinstance(op.gate, ops.common_gates.CZPowGate):
             if op.gate._exponent == 1.0:
@@ -173,20 +176,20 @@ class QulacsSimulator(SimulatesFinalState):
             else:
                 mat = _get_google_rotz(op.gate._exponent)
                 gate = qulacs.gate.DenseMatrix(indices[1], mat)
-                gate.add_control_qubit(indices[0],1)
+                gate.add_control_qubit(indices[0], 1)
                 qulacs_circuit.add_gate(gate)
         elif isinstance(op.gate, ops.common_gates.SwapPowGate):
             if op.gate._exponent == 1.0:
                 qulacs_circuit.add_SWAP_gate(indices[0], indices[1])
             else:
-                qulacs_circuit.add_dense_matrix_gate(indices,op._unitary_())
+                qulacs_circuit.add_dense_matrix_gate(indices, op._unitary_())
         elif isinstance(op.gate, ops.parity_gates.XXPowGate):
-            qulacs_circuit.add_multi_Pauli_rotation_gate(indices, [1,1], -np.pi*op.gate._exponent)
+            qulacs_circuit.add_multi_Pauli_rotation_gate(indices, [1, 1], -np.pi * op.gate._exponent)
         elif isinstance(op.gate, ops.parity_gates.YYPowGate):
-            qulacs_circuit.add_multi_Pauli_rotation_gate(indices, [2,2], -np.pi*op.gate._exponent)
+            qulacs_circuit.add_multi_Pauli_rotation_gate(indices, [2, 2], -np.pi * op.gate._exponent)
         elif isinstance(op.gate, ops.parity_gates.ZZPowGate):
-            qulacs_circuit.add_multi_Pauli_rotation_gate(indices, [3,3], -np.pi*op.gate._exponent)
-        elif isinstance(op.gate, ops.TwoQubitMatrixGate):
+            qulacs_circuit.add_multi_Pauli_rotation_gate(indices, [3, 3], -np.pi * op.gate._exponent)
+        elif (len(indices) == 2 and isinstance(op.gate, ops.matrix_gates.MatrixGate)):
             indices.reverse()
             mat = op.gate._matrix
             qulacs_circuit.add_dense_matrix_gate(indices, mat)
@@ -195,27 +198,30 @@ class QulacsSimulator(SimulatesFinalState):
         elif isinstance(op.gate, ops.three_qubit_gates.CCXPowGate):
             mat = _get_google_rotx(op.gate._exponent)
             gate = qulacs.gate.DenseMatrix(indices[2], mat)
-            gate.add_control_qubit(indices[0],1)
-            gate.add_control_qubit(indices[1],1)
+            gate.add_control_qubit(indices[0], 1)
+            gate.add_control_qubit(indices[1], 1)
             qulacs_circuit.add_gate(gate)
         elif isinstance(op.gate, ops.three_qubit_gates.CCZPowGate):
             mat = _get_google_rotz(op.gate._exponent)
             gate = qulacs.gate.DenseMatrix(indices[2], mat)
-            gate.add_control_qubit(indices[0],1)
-            gate.add_control_qubit(indices[1],1)
+            gate.add_control_qubit(indices[0], 1)
+            gate.add_control_qubit(indices[1], 1)
             qulacs_circuit.add_gate(gate)
         elif isinstance(op.gate, ops.three_qubit_gates.CSwapGate):
-            mat = np.zeros(shape=(4,4))
-            mat[0,0] = 1; mat[1,2] = 1; mat[2,1] = 1; mat[3,3] = 1
+            mat = np.zeros(shape=(4, 4))
+            mat[0, 0] = 1
+            mat[1, 2] = 1
+            mat[2, 1] = 1
+            mat[3, 3] = 1
             gate = qulacs.gate.DenseMatrix(indices[1:], mat)
-            gate.add_control_qubit(indices[0],1)
+            gate.add_control_qubit(indices[0], 1)
             qulacs_circuit.add_gate(gate)
 
         # Misc
         elif protocols.has_unitary(op):
             indices.reverse()
             mat = op._unitary_()
-            qulacs_circuit.add_dense_matrix_gate(indices,mat)
+            qulacs_circuit.add_dense_matrix_gate(indices, mat)
 
         # Not unitary
         else:
@@ -225,10 +231,9 @@ class QulacsSimulator(SimulatesFinalState):
 
 
 class QulacsSimulatorGpu(QulacsSimulator):
-    def _get_qulacs_state(self, num_qubits : int):
+    def _get_qulacs_state(self, num_qubits: int):
         try:
             state = qulacs.QuantumStateGpu(num_qubits)
             return state
         except AttributeError:
             raise Exception("GPU simulator is not installed")
-
