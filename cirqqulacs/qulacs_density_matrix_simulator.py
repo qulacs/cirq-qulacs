@@ -8,27 +8,29 @@ from cirq import circuits, ops, protocols, linalg
 from cirq.sim import density_matrix_utils
 from cirq import DensityMatrixSimulator
 from cirq import DensityMatrixStepResult
+from cirq import to_valid_density_matrix
+
 
 class QulacsDensityMatrixSimulator(DensityMatrixSimulator):
     def _base_iterator(
-                self,
-                circuit: circuits.Circuit,
-                qubit_order: ops.QubitOrderOrList,
-                initial_state: Union[int, np.ndarray],
-                perform_measurements: bool = True) -> Iterator:
+            self,
+            circuit: circuits.Circuit,
+            qubit_order: ops.QubitOrderOrList,
+            initial_state: Union[int, np.ndarray],
+            perform_measurements: bool = True) -> Iterator:
 
         qubits = ops.QubitOrder.as_qubit_order(qubit_order).order_for(
             circuit.all_qubits())
         num_qubits = len(qubits)
         qubit_map = {q: i for i, q in enumerate(qubits)}
-        matrix = density_matrix_utils.to_valid_density_matrix(
-            initial_state, num_qubits, dtype = self._dtype)
+        matrix = to_valid_density_matrix(
+            initial_state, num_qubits, dtype=self._dtype)
         if len(circuit) == 0:
-            yield DensityMatrixStepResult(matrix, {}, qubit_map, dtype = self._dtype)
+            yield DensityMatrixStepResult(matrix, {}, qubit_map, dtype=self._dtype)
 
         matrix = np.reshape(matrix, (2**num_qubits, 2**num_qubits))
         noisy_moments = self.noise.noisy_moments(circuit,
-                                                sorted(circuit.all_qubits()))
+                                                 sorted(circuit.all_qubits()))
 
         state = qulacs.DensityMatrix(num_qubits)
         state.load(matrix)
@@ -61,7 +63,7 @@ class QulacsDensityMatrixSimulator(DensityMatrixSimulator):
             matrix = np.reshape(matrix, (2,) * num_qubits * 2)
 
             yield DensityMatrixStepResult(
-                    density_matrix=matrix,
-                    measurements=measurements,
-                    qubit_map=qubit_map,
-                    dtype=self._dtype)
+                density_matrix=matrix,
+                measurements=measurements,
+                qubit_map=qubit_map,
+                dtype=self._dtype)

@@ -7,9 +7,10 @@ import cirq
 from cirqqulacs import QulacsDensityMatrixSimulator
 from .test_qulacs_simulator import parse_qasm_to_QulacsCircuit
 
+
 class TestQulacsDensityMatrixSimulator(unittest.TestCase):
     def __init__(self, *args, **kwargs):
-        super().__init__(*args,**kwargs)
+        super().__init__(*args, **kwargs)
         self.qubit_n = 5
         self.test_repeat = 4
 
@@ -51,7 +52,7 @@ class TestQulacsDensityMatrixSimulator(unittest.TestCase):
         circuit = cirq.Circuit()
         for _ in range(self.test_repeat):
             index = np.random.randint(self.qubit_n)
-            angle = np.random.rand()*np.pi*2
+            angle = np.random.rand() * np.pi * 2
             circuit.append(gate_op(angle).on(qubits[index]))
             self.check_result(circuit)
 
@@ -69,27 +70,27 @@ class TestQulacsDensityMatrixSimulator(unittest.TestCase):
         circuit = cirq.Circuit()
         for _ in range(self.test_repeat):
             index = np.random.randint(self.qubit_n)
-            angle = np.random.rand(3)*np.pi*2
-            #circuit.append(cirq.circuits.qasm_output.QasmUGate(angle[0], angle[1], angle[2]).on(qubits[index]))
+            angle = np.random.rand(3) * np.pi * 2
+            # circuit.append(cirq.circuits.qasm_output.QasmUGate(angle[0], angle[1], angle[2]).on(qubits[index]))
             circuit.append(cirq.rz(angle[0]).on(qubits[index]))
             circuit.append(cirq.ry(angle[1]).on(qubits[index]))
             circuit.append(cirq.rz(angle[2]).on(qubits[index]))
             self.check_result(circuit)
-       
+
     def check_two_qubit_gate(self, gate_op):
         qubits = [cirq.LineQubit(i) for i in range(self.qubit_n)]
         circuit = cirq.Circuit()
         all_indices = np.arange(self.qubit_n)
         for _ in range(self.test_repeat):
             for index in range(self.qubit_n):
-                angle = np.random.rand(3)*np.pi*2
-                #circuit.append(cirq.circuits.qasm_output.QasmUGate(angle[0], angle[1], angle[2]).on(qubits[index]))
+                angle = np.random.rand(3) * np.pi * 2
+                # circuit.append(cirq.circuits.qasm_output.QasmUGate(angle[0], angle[1], angle[2]).on(qubits[index]))
                 circuit.append(cirq.rz(angle[0]).on(qubits[index]))
                 circuit.append(cirq.ry(angle[1]).on(qubits[index]))
                 circuit.append(cirq.rz(angle[2]).on(qubits[index]))
             np.random.shuffle(all_indices)
             index = all_indices[:2]
-            circuit.append(gate_op(qubits[index[0]],qubits[index[1]]))
+            circuit.append(gate_op(qubits[index[0]], qubits[index[1]]))
             self.check_result(circuit)
 
     def test_QulacsDensityMatrixSimulator_CNOTgate(self):
@@ -116,14 +117,14 @@ class TestQulacsDensityMatrixSimulator(unittest.TestCase):
         all_indices = np.arange(self.qubit_n)
         for _ in range(self.test_repeat):
             for index in range(self.qubit_n):
-                angle = np.random.rand(3)*np.pi*2
-                #circuit.append(cirq.circuits.qasm_output.QasmUGate(angle[0], angle[1], angle[2]).on(qubits[index]))
+                angle = np.random.rand(3) * np.pi * 2
+                # circuit.append(cirq.circuits.qasm_output.QasmUGate(angle[0], angle[1], angle[2]).on(qubits[index]))
                 circuit.append(cirq.rz(angle[0]).on(qubits[index]))
                 circuit.append(cirq.ry(angle[1]).on(qubits[index]))
                 circuit.append(cirq.rz(angle[2]).on(qubits[index]))
             np.random.shuffle(all_indices)
             index = all_indices[:3]
-            circuit.append(gate_op(qubits[index[0]],qubits[index[1]],qubits[index[2]]))
+            circuit.append(gate_op(qubits[index[0]], qubits[index[1]], qubits[index[2]]))
             self.check_result(circuit)
 
     def test_QulacsDensityMatrixSimulator_CCXgate(self):
@@ -141,6 +142,7 @@ class TestQulacsDensityMatrixSimulator(unittest.TestCase):
         circuit = cirq.Circuit()
         parse_qasm_to_QulacsCircuit('tests/quantum_volume_n6_d8_0_9.qasm', circuit, qubits)
         self.check_result(circuit)
+
 
 if __name__ == "__main__":
     unittest.main()
